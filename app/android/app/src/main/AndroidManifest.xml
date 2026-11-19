@@ -31,6 +31,7 @@
             </intent-filter>
         </activity>
         <!-- 공유 메뉴의 '채록'(F-002) — 텍스트·URL·이미지·파일, 한 개·여러 개 -->
+        <!-- [숨김] 2026-11-19 사용자 결정: 목록·붙여넣기와 함께 공유 메뉴에서도 뺀다. 되살리려면 아래 주석 한 겹을 푼다(ShareActivity.kt·share_entry.dart는 그대로 있다).
         <activity
             android:name=".ShareActivity"
             android:exported="true"
@@ -52,6 +53,7 @@
                 <data android:mimeType="*/*" />
             </intent-filter>
         </activity>
+        [숨김 끝] -->
         <!-- F-010 녹음 재생: 캐시 폴더 open/의 파일을 폰 기본 앱에 읽기 권한으로 넘긴다(내보내지 않음) -->
         <provider
             android:name="androidx.core.content.FileProvider"
