@@ -1,29 +1,32 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 앱 아이콘 앞 그림: 금색 만년필 펜촉(기존판 2026-10-29 사용자 선택 '금촉'). 색은 밝은 파랑 바탕에 맞춰 연한 금색 + 짙은 파랑 선(2026-11-19).
-     캔버스 108dp 중 가운데 66dp가 안전 영역 — 펜촉(원래 좌표 100 기준 46x77)을 0.5배로 가운데 둔다. -->
+<!-- 앱 아이콘 앞 그림: 체크 목록(2026-11-19 사용자 선택 '다' — 앱 이름 '계획실천'). 그전은 금색 펜촉(git 이력).
+     체크한 두 줄(연한 금색 체크) + 아직 안 한 한 줄(짙은 파랑 빈 칸), 줄은 옅은 하늘색. 바탕은 colors.xml의 밝은 파랑.
+     캔버스 108dp 중 가운데 66dp가 안전 영역 — 목업 좌표(112 기준, 그림 60x58)를 0.95배로 가운데 둔다. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
     <group
-        android:scaleX="0.5"
-        android:scaleY="0.5"
-        android:translateX="29"
-        android:translateY="28.25">
+        android:scaleX="0.95"
+        android:scaleY="0.95"
+        android:translateX="0.8"
+        android:translateY="-1.1">
         <path
-            android:fillColor="#FAC775"
-            android:pathData="M50,90 L31,50 C27,41 28,31 34,23 L41,13 L59,13 L66,23 C72,31 73,41 69,50 Z" />
-        <path
-            android:strokeColor="#0C447C"
-            android:strokeWidth="2.4"
-            android:pathData="M50,54 L50,90" />
-        <path
-            android:fillColor="#0C447C"
-            android:pathData="M45.5,50 a4.5,4.5 0 1,0 9,0 a4.5,4.5 0 1,0 -9,0 Z" />
+            android:strokeColor="#FAC775"
+            android:strokeWidth="6"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round"
+            android:pathData="M26,35 l6,6 l11,-12 M26,57 l6,6 l11,-12" />
         <path
             android:strokeColor="#0C447C"
-            android:strokeWidth="1.6"
-            android:pathData="M38,27 Q50,33 62,27" />
+            android:strokeWidth="4"
+            android:strokeLineJoin="round"
+            android:pathData="M30,72 h7 a4,4 0 0 1 4,4 v7 a4,4 0 0 1 -4,4 h-7 a4,4 0 0 1 -4,-4 v-7 a4,4 0 0 1 4,-4 Z" />
+        <path
+            android:strokeColor="#E6F1FB"
+            android:strokeWidth="7"
+            android:strokeLineCap="round"
+            android:pathData="M54,36 h32 M54,58 h32 M54,80 h22" />
     </group>
 </vector>
