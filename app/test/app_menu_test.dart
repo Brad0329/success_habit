@@ -6,6 +6,9 @@ import 'package:chaerok/log.dart';
 import 'package:chaerok/main.dart';
 import 'package:chaerok/paste_screen.dart';
 import 'package:chaerok/phone_store.dart';
+import 'package:chaerok/plan_screen.dart';
+import 'package:chaerok/plans.dart';
+import 'package:chaerok/settings_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -59,7 +62,7 @@ void main() {
     expect((await menu(t)).map((i) => i.value), [AppMenuItem.plan, AppMenuItem.paste, AppMenuItem.list, AppMenuItem.chat]);
   });
 
-  testWidgets('Phase 003 조립: 첫 화면은 붙여넣기 화면이고 메뉴는 붙여넣기(잠김)·목록 둘', (t) async {
+  testWidgets('계획 없이 조립하면 첫 화면은 붙여넣기 화면이고 메뉴는 붙여넣기(잠김)·목록 둘', (t) async {
     final tmp = Directory.systemTemp.createTempSync('chaerok_menu');
     addTearDown(() => tmp.deleteSync(recursive: true));
     initLog(tmp);
@@ -71,6 +74,38 @@ void main() {
     final items = await menu(t);
     expect(items.map((i) => i.value), [AppMenuItem.paste, AppMenuItem.list]);
     expect(items.map((i) => i.enabled), [false, true]);
+  });
+
+  testWidgets('Phase 004 조립: 켜면 계획 화면이 붙여넣기 위에 열리고 메뉴는 계획(잠김)·붙여넣기·목록·설정 / 설정에 계획 두 줄 / 뒤로 2번 = 붙여넣기',
+      (t) async {
+    final tmp = Directory.systemTemp.createTempSync('chaerok_menu');
+    addTearDown(() => tmp.deleteSync(recursive: true));
+    initLog(tmp);
+    final store = PhoneStore(Directory('${tmp.path}/records'));
+    final dev = FakeDevice(tmp);
+    await t.pumpWidget(ChaerokApp(
+      store: store,
+      device: dev.device,
+      list: fakeListDeps(store, dev),
+      plans: PlanStore(Directory('${tmp.path}/plans')),
+      planFirst: true,
+    ));
+    await t.pumpAndSettle();
+    expect(find.byType(PlanScreen), findsOneWidget);
+    final items = await menu(t);
+    expect(items.map((i) => i.value), [AppMenuItem.plan, AppMenuItem.paste, AppMenuItem.list, AppMenuItem.settings]);
+    expect(items.map((i) => i.enabled), [false, true, true, true]);
+    await t.tap(find.text('설정').last);
+    await t.pumpAndSettle();
+    expect(find.byType(SettingsScreen), findsOneWidget);
+    expect(find.text('평일 계획'), findsOneWidget);
+    expect(find.text('주말·휴일 계획'), findsOneWidget);
+    await t.pageBack();
+    await t.pumpAndSettle();
+    await t.pageBack();
+    await t.pumpAndSettle();
+    expect(find.byType(PlanScreen), findsNothing);
+    expect(find.byType(PasteScreen), findsOneWidget);
   });
 
   testWidgets('계획 → 목록 → 대화 → 계획으로 옮긴 뒤 뒤로 4번 = 대화·목록·계획·바닥 차례로', (t) async {

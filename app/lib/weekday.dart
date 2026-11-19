@@ -6,3 +6,6 @@ const _names = ['월', '화', '수', '목', '금', '토', '일'];
 
 /// "월" … "일".
 String weekdayKo(DateTime d) => _names[d.weekday - 1];
+
+/// 달력 머리줄 — 일요일부터.
+final calendarHeader = [_names[6], ..._names.take(6)];

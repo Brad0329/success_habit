@@ -41,7 +41,16 @@ class PasteScreen extends StatefulWidget {
     this.sentClipFile,
     this.recorder,
     this.voiceLimit = voice.voiceLimit,
+    this.onOpenPlan,
+    this.planFirst = false,
   });
+
+  /// F-016 계획 화면 — [planFirst]일 때 켜자마자 연다. 화면 이동 입구는 ⋯ 메뉴(F-017, `app_menu.dart`).
+  final void Function(BuildContext)? onOpenPlan;
+
+  /// 앱을 켜면 계획 화면을 이 화면 위에 바로 연다(첫 화면 = 계획 달력).
+  /// 이 화면은 밑에 남는다 — 클립보드 채우기·녹음이 여기 있어서(뒤로 가기 = 붙여넣기 화면).
+  final bool planFirst;
 
   final PhoneStore store;
 
@@ -79,6 +88,12 @@ class PasteScreenState extends State<PasteScreen> with WidgetsBindingObserver {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _focusSub = widget.device.windowFocus.listen((_) => onFocus());
+    final openPlan = widget.onOpenPlan;
+    if (widget.planFirst && openPlan != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) openPlan(context);
+      });
+    }
     unawaited(_start());
   }
 

@@ -9,7 +9,7 @@ library;
 import 'package:flutter/material.dart';
 
 /// 메뉴 항목. **순서가 곧 메뉴 순서다**(계획이 맨 위, 설정은 맨 아래).
-/// 화면이 아직 없는 항목(계획·대화·외울 문장·설정 — Phase 004~007)은 입구가 null이라 메뉴에 안 나온다.
+/// 화면이 아직 없는 항목(대화·외울 문장 — Phase 006·007)은 입구가 null이라 메뉴에 안 나온다.
 enum AppMenuItem {
   plan('계획', Icons.event_available),
   paste('붙여넣기', Icons.edit_note),

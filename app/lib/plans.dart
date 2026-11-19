@@ -1,0 +1,516 @@
+/// F-016 계획관리 — 매일 계획 목록과 날짜별 체크. 폰 `files/plans/plans.json`에 둔다.
+///
+/// 목록을 바꾸면 '오늘부터' 적용된다 — 목록 이력을 적용 시작 날짜(`from`)별로 보관하고,
+/// 어느 날의 목록 = from이 그날 이하인 것 중 마지막. 그래서 지난 날의 목록·체크는 그대로 남는다(REQUIREMENTS F-016 ②).
+/// 항목은 id로 구분한다 — 이름을 바꿔도 같은 항목이라 체크가 유지된다.
+/// F-025 보류(`held`, 날짜 → id) = 그날 할 수 없는 항목 — 집계의 전체 수에서 빠지고 체크할 수 없다.
+/// F-026 항목마다 종류(`kind`: do·dont). 키가 없는 옛 항목은 DO.
+/// F-031 평일·주말(휴일) 나누기 — 이력 칸의 `weekend`(주말에 하는 id, 주말 순서)가 있으면 나눈 칸.
+/// 쉬는 날(토·일·`holidays`) 목록 = 주말 계획 + 그 밖의 평일 계획(기본 보류 — `released`로 그날만 풀 수 있다),
+/// 평일 목록 = `weekday`가 true인 항목. `weekend`가 없는 옛 칸은 모든 날 같은 목록(지난 날 그대로).
+/// 로그에는 계획 이름을 남기지 않는다 — 건수만.
+/// F-024 하루 평가는 같은 폴더의 `reviews.json`(날짜 → 글). 로그에는 글자 수만.
+library;
+
+import 'dart:convert';
+import 'dart:io';
+
+import 'atomic_file.dart';
+import 'log.dart';
+
+const maxPlanItems = 30;
+const maxPlanChars = 40;
+const maxReviewChars = 1000; // F-024 하루 평가
+
+/// F-026 계획 종류 — DO(하기) · DON'T(안 하기). DON'T의 체크 = 지켰다.
+enum PlanKind {
+  doIt('do'),
+  dont('dont');
+
+  const PlanKind(this.json);
+  final String json;
+
+  /// 파일의 값 → 종류. 키가 없는 옛 항목(null)은 DO, 모르는 값은 FormatException(깨진 파일로 본다).
+  static PlanKind parse(Object? v) => switch (v) {
+        null || 'do' => PlanKind.doIt,
+        'dont' => PlanKind.dont,
+        _ => throw FormatException('모르는 계획 종류: $v'),
+      };
+}
+
+class PlanItem {
+  const PlanItem(this.id, this.title, [this.kind = PlanKind.doIt, this.weekday = true]);
+  final String id;
+  final String title;
+  final PlanKind kind;
+
+  /// F-031 평일 계획인가 — false = 주말에만 넣은 항목(평일엔 안 보임).
+  final bool weekday;
+
+  Map<String, Object?> toJson() => {'id': id, 'title': title, 'kind': kind.json, if (!weekday) 'weekday': false};
+
+  @override
+  bool operator ==(Object other) =>
+      other is PlanItem && other.id == id && other.title == title && other.kind == kind && other.weekday == weekday;
+
+  @override
+  int get hashCode => Object.hash(id, title, kind, weekday);
+}
+
+class _Version {
+  _Version(this.from, this.items, this.weekend);
+  final String from;
+  List<PlanItem> items;
+
+  /// F-031 쉬는 날에 하는 항목 id(주말 순서). null = 나누기 전 칸(모든 날 같은 목록).
+  List<String>? weekend;
+}
+
+/// F-031 편집 화면의 한 줄 — (id, 이름, 종류). id가 null이면 새 항목.
+typedef PlanRow = (String?, String, PlanKind);
+
+/// F-031 토·일인가(휴일 지정과 별개).
+bool isWeekend(DateTime d) => d.weekday == DateTime.saturday || d.weekday == DateTime.sunday;
+
+/// 폰 현지 날짜 → `yyyy-mm-dd`.
+String dayKey(DateTime d) =>
+    '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+
+String _norm(String s) => s.replaceAll(RegExp(r'\s+'), '').toLowerCase();
+
+/// 저장할 수 있으면 null, 아니면 화면에 보일 이유.
+String? validatePlanTitles(List<String> titles) {
+  if (titles.length > maxPlanItems) return '계획은 $maxPlanItems개까지';
+  final seen = <String>{};
+  for (final t in titles) {
+    if (t.isEmpty) return '빈 이름은 넣을 수 없습니다';
+    if (t.length > maxPlanChars) return '이름은 $maxPlanChars자까지';
+    if (!seen.add(_norm(t))) return '같은 이름이 있습니다';
+  }
+  return null;
+}
+
+class PlanStore {
+  PlanStore(this.dir) {
+    _load();
+  }
+
+  /// `files/plans/`.
+  final Directory dir;
+
+  File get _file => File('${dir.path}/plans.json');
+
+  final _versions = <_Version>[];
+  final _done = <String, Set<String>>{};
+  final _held = <String, Set<String>>{}; // F-025 보류 — 날짜 → 항목 id
+  final _released = <String, Set<String>>{}; // F-031 쉬는 날 그날만 푼 평일 계획 — 날짜 → 항목 id
+  final _holidays = <String>{}; // F-031 휴일로 지정한 평일
+  var _nextId = 1;
+
+  /// 파일이 깨졌으면 true — 저장·체크를 모두 거부한다(덮어써서 기록을 잃지 않게).
+  bool broken = false;
+
+  void _load() {
+    if (!_file.existsSync()) return;
+    try {
+      final j = jsonDecode(_file.readAsStringSync());
+      if (j is! Map) throw const FormatException('객체가 아님');
+      for (final v in j['lists'] as List) {
+        final m = v as Map;
+        final weekend = m['weekend'] as List?; // F-031: 없으면 나누기 전 칸
+        _versions.add(_Version(
+          m['from'] as String,
+          [
+            for (final it in m['items'] as List)
+              PlanItem((it as Map)['id'] as String, it['title'] as String, PlanKind.parse(it['kind']),
+                  (it['weekday'] as bool?) ?? true),
+          ],
+          weekend == null ? null : [for (final id in weekend) id as String],
+        ));
+      }
+      (j['done'] as Map).forEach((k, v) => _done[k as String] = {for (final id in v as List) id as String});
+      // F-025: `held`가 없는 옛 파일 = 보류 0건. F-031 `released`·`holidays`도 없으면 0건.
+      ((j['held'] as Map?) ?? const {})
+          .forEach((k, v) => _held[k as String] = {for (final id in v as List) id as String});
+      ((j['released'] as Map?) ?? const {})
+          .forEach((k, v) => _released[k as String] = {for (final id in v as List) id as String});
+      _holidays.addAll([for (final k in (j['holidays'] as List?) ?? const []) k as String]);
+      _nextId = j['next_id'] as int;
+    } on Object catch (e) {
+      logError('계획 파일을 읽지 못함 — 저장·체크를 막는다(파일은 그대로 둠)', e);
+      _versions.clear();
+      _done.clear();
+      _held.clear();
+      _released.clear();
+      _holidays.clear();
+      broken = true;
+    }
+  }
+
+  /// 지금(가장 마지막) 목록 — 평일·주말 항목 전부. 아직 없으면 빈 목록.
+  List<PlanItem> get current => _versions.isEmpty ? const [] : List.unmodifiable(_versions.last.items);
+
+  /// F-031 지금 평일 계획(평일 순서).
+  List<PlanItem> get weekdayItems => [for (final i in current) if (i.weekday) i];
+
+  /// F-031 지금 주말 계획(주말 순서) — 주말에만 넣은 항목 + 편입한 평일 계획.
+  List<PlanItem> get weekendItems => _versions.isEmpty ? const [] : _weekendOf(_versions.last);
+
+  /// F-031 지금 주말에 보류로 보이는 평일 계획(평일 순서).
+  List<PlanItem> get weekendHeldItems => _versions.isEmpty ? const [] : _defaultHeldOf(_versions.last);
+
+  List<PlanItem> _weekendOf(_Version v) {
+    final byId = {for (final i in v.items) i.id: i};
+    return [for (final id in v.weekend ?? const <String>[]) if (byId[id] != null) byId[id]!];
+  }
+
+  List<PlanItem> _defaultHeldOf(_Version v) {
+    final on = {...?v.weekend};
+    return [for (final i in v.items) if (i.weekday && !on.contains(i.id)) i];
+  }
+
+  _Version? _versionOn(DateTime day) {
+    final k = dayKey(day);
+    for (final v in _versions.reversed) {
+      if (v.from.compareTo(k) <= 0) return v;
+    }
+    return null;
+  }
+
+  /// F-031 쉬는 날인가 — 토·일이거나 휴일로 지정한 날.
+  bool isRestDay(DateTime day) => isWeekend(day) || _holidays.contains(dayKey(day));
+
+  /// F-031 휴일로 지정한 평일인가.
+  bool isHoliday(DateTime day) => _holidays.contains(dayKey(day));
+
+  /// F-031 그날을 휴일로 지정·해제할 수 있나 — 평일(월~금)이고 그날 목록이 나뉜 칸일 때만.
+  bool canSetHoliday(DateTime day) => !broken && !isWeekend(day) && _versionOn(day)?.weekend != null;
+
+  /// 그날의 목록. 첫 목록을 넣기 전 날짜면 null("계획 없음").
+  /// F-031 나눈 칸이면 평일 = 평일 계획, 쉬는 날 = 주말 계획 + 그 밖의 평일 계획(뒤쪽, 기본 보류).
+  List<PlanItem>? itemsOn(DateTime day) {
+    final v = _versionOn(day);
+    if (v == null) return null;
+    if (v.weekend == null) return List.unmodifiable(v.items);
+    if (!isRestDay(day)) return List.unmodifiable([for (final i in v.items) if (i.weekday) i]);
+    return List.unmodifiable([..._weekendOf(v), ..._defaultHeldOf(v)]);
+  }
+
+  /// F-031 그날 기본 보류인 항목 id(쉬는 날의 주말 계획 밖 평일 계획).
+  Set<String> _defaultHeldOn(DateTime day) {
+    final v = _versionOn(day);
+    if (v == null || v.weekend == null || !isRestDay(day)) return const {};
+    return {for (final i in _defaultHeldOf(v)) i.id};
+  }
+
+  /// 그날 체크한 항목 id(그날 목록에 있고 보류가 아닌 것만).
+  Set<String> doneOn(DateTime day) => _onList(day, _done).difference(heldOn(day));
+
+  /// F-025 그날 보류한 항목 id(그날 목록에 있는 것만). F-031 기본 보류 중 그날 푼 것은 뺀다.
+  Set<String> heldOn(DateTime day) {
+    final released = _released[dayKey(day)] ?? const <String>{};
+    return _onList(day, _held).union(_defaultHeldOn(day).difference(released));
+  }
+
+  Set<String> _onList(DateTime day, Map<String, Set<String>> byDay) {
+    final items = itemsOn(day);
+    if (items == null) return const {};
+    final ids = {for (final i in items) i.id};
+    return (byDay[dayKey(day)] ?? const <String>{}).intersection(ids);
+  }
+
+  /// 달력 칸 집계 (한 수, 전체 — 보류는 뺀다). 계획 없는 날은 null. [kind]를 주면 그 종류만(F-026).
+  (int, int)? summary(DateTime day, {PlanKind? kind}) {
+    final all = itemsOn(day);
+    if (all == null) return null;
+    final ids = {for (final i in all) if (kind == null || i.kind == kind) i.id};
+    final held = heldOn(day).intersection(ids).length;
+    return (doneOn(day).intersection(ids).length, ids.length - held);
+  }
+
+  /// 종류를 모르는 평일 계획 저장 — 있던 항목은 지금 종류 그대로, 새 항목은 DO. 나머지는 [saveItems].
+  Future<String?> saveList(List<(String?, String)> rows, DateTime today) {
+    final kinds = {for (final i in current) i.id: i.kind};
+    return saveItems([for (final r in rows) (r.$1, r.$2, kinds[r.$1] ?? PlanKind.doIt)], today);
+  }
+
+  /// 오늘부터 적용할 **평일 계획**을 저장한다. [rows] = (id, 이름, 종류) 순서대로 — id가 null이면 새 항목.
+  /// F-031 주말에만 넣은 항목·주말 순서는 그대로 두고, 여기서 지운 평일 계획은 주말에서도 없어진다.
+  /// 실패면 이유(파일은 그대로), 성공·변화 없음이면 null.
+  Future<String?> saveItems(List<PlanRow> rows, DateTime today) {
+    final all = <(String?, String, PlanKind, bool)>[
+      for (final r in rows) (r.$1, r.$2, r.$3, true),
+      for (final i in current) if (!i.weekday) (i.id, i.title, i.kind, false),
+    ];
+    final index = {for (var k = 0; k < all.length; k++) if (all[k].$1 != null) all[k].$1!: k};
+    final old = _versions.isEmpty ? const <String>[] : (_versions.last.weekend ?? const <String>[]);
+    return _save(all, [for (final id in old) if (index[id] != null) index[id]!], today);
+  }
+
+  /// F-031 오늘부터 적용할 **주말 계획**을 저장한다. [rows] = 주말 순서대로 — 평일 계획의 id면 편입, 아니면 주말에만.
+  /// 평일 계획은 그대로 두고(여기 없으면 주말에 보류), 이름은 여기서 바꾼 것을 따른다. 여기 없는 주말 전용 항목은 지운다.
+  Future<String?> saveWeekend(List<PlanRow> rows, DateTime today) {
+    final renamed = {for (final r in rows) if (r.$1 != null) r.$1!: r.$2};
+    final all = <(String?, String, PlanKind, bool)>[
+      for (final i in weekdayItems) (i.id, renamed[i.id] ?? i.title, i.kind, true),
+    ];
+    final weekdayIndex = {for (var k = 0; k < all.length; k++) all[k].$1!: k};
+    final order = <int>[];
+    for (final r in rows) {
+      final k = weekdayIndex[r.$1];
+      if (k != null) {
+        order.add(k);
+      } else {
+        all.add((r.$1, r.$2, r.$3, false));
+        order.add(all.length - 1);
+      }
+    }
+    return _save(all, order, today);
+  }
+
+  /// [rows] = (id, 이름, 종류, 평일인가), [weekendIdx] = 주말 순서(rows 위치). 오늘부터 적용할 칸을 쓴다.
+  Future<String?> _save(List<(String?, String, PlanKind, bool)> rows, List<int> weekendIdx, DateTime today) async {
+    if (broken) return '계획 파일을 읽지 못해 저장할 수 없습니다';
+    final titles = [for (final r in rows) r.$2.trim()];
+    final error = validatePlanTitles(titles);
+    if (error != null) return error;
+    var next = _nextId;
+    final items = [
+      for (var k = 0; k < rows.length; k++) PlanItem(rows[k].$1 ?? 'p${next++}', titles[k], rows[k].$3, rows[k].$4),
+    ];
+    final weekend = [for (final k in weekendIdx) items[k].id];
+    final last = _versions.isEmpty ? null : _versions.last;
+    if (last?.weekend != null && _listEquals(items, last!.items) && _idsEqual(weekend, last.weekend!)) return null;
+    final k = dayKey(today);
+    final prevNext = _nextId;
+    final added = last == null || last.from != k;
+    final oldItems = last?.items;
+    final oldWeekend = last?.weekend;
+    if (added) {
+      _versions.add(_Version(k, items, weekend));
+    } else {
+      last.items = items;
+      last.weekend = weekend;
+    }
+    _nextId = next;
+    try {
+      await _write();
+    } on Object {
+      // 되돌리고 다시 던진다 — 화면이 실패를 알린다(로그는 _write가 남김).
+      if (added) {
+        _versions.removeLast();
+      } else {
+        last.items = oldItems!;
+        last.weekend = oldWeekend;
+      }
+      _nextId = prevNext;
+      rethrow;
+    }
+    logInfo('계획 저장: 평일 ${items.where((i) => i.weekday).length}개 · 주말 ${weekend.length}개(적용 $k)');
+    return null;
+  }
+
+  /// F-031 나누기 전 목록이면 오늘부터 나눈 칸을 만든다 — 지금 목록 = 평일 계획, 주말 계획 = 빈 목록(평일 계획 전부 보류).
+  /// 앱을 켤 때 한 번. 이미 나눴거나 목록이 없거나 깨진 파일이면 쓰기 0. 쓰기 실패는 되돌리고 다시 던진다.
+  Future<void> splitFromToday(DateTime today) async {
+    if (broken || _versions.isEmpty || _versions.last.weekend != null) return;
+    final last = _versions.last;
+    final k = dayKey(today);
+    final added = last.from != k;
+    if (added) {
+      _versions.add(_Version(k, [for (final i in last.items) PlanItem(i.id, i.title, i.kind)], []));
+    } else {
+      last.weekend = [];
+    }
+    try {
+      await _write();
+    } on Object {
+      if (added) {
+        _versions.removeLast();
+      } else {
+        last.weekend = null;
+      }
+      rethrow;
+    }
+    logInfo('계획을 평일·주말로 나눔: 평일 ${last.items.length}개(적용 $k)');
+  }
+
+  /// F-031 그날을 휴일로 지정·해제한다. [canSetHoliday]가 아니면 false(쓰기 0). 지정하면 true를 돌려준 뒤 그날은 쉬는 날.
+  Future<bool> toggleHoliday(DateTime day) async {
+    if (!canSetHoliday(day)) return false;
+    final k = dayKey(day);
+    final on = !_holidays.remove(k);
+    if (on) _holidays.add(k);
+    try {
+      await _write();
+    } on Object {
+      if (on) {
+        _holidays.remove(k);
+      } else {
+        _holidays.add(k);
+      }
+      rethrow;
+    }
+    logInfo('휴일 ${on ? '지정' : '해제'}: $k');
+    return true;
+  }
+
+  /// 체크·보류를 바꿀 수 있는 날·항목인가 — 깨진 파일·미래 날짜·계획 없는 날·목록에 없는 항목이면 false.
+  bool _canMark(DateTime day, String id, DateTime today) {
+    if (broken) return false;
+    if (dayKey(day).compareTo(dayKey(today)) > 0) return false;
+    final items = itemsOn(day);
+    return items != null && items.any((i) => i.id == id);
+  }
+
+  /// F-025 보류를 켜고 끈다. 켜면 그날 체크는 풀린다. 거부 조건은 [toggle]과 같다(쓰기 0).
+  /// F-031 쉬는 날의 기본 보류 항목은 그날만 풀기(`released`) ↔ 다시 보류.
+  Future<bool> toggleHold(DateTime day, String id, DateTime today) async {
+    if (!_canMark(day, id, today)) return false;
+    final k = dayKey(day);
+    final byDefault = _defaultHeldOn(day).contains(id);
+    final held = (byDefault ? _released : _held).putIfAbsent(k, () => <String>{});
+    final done = _done.putIfAbsent(k, () => <String>{});
+    // 기본 보류 항목은 `released`에 있으면 풀린 상태 — 빼면 다시 보류(on).
+    final removed = held.remove(id);
+    final on = byDefault ? removed : !removed;
+    final wasDone = on && done.remove(id);
+    if (!removed) held.add(id);
+    try {
+      await _write();
+    } on Object {
+      // 되돌리고 다시 던진다 — 화면이 실패를 알린다(로그는 _write가 남김).
+      if (removed) {
+        held.add(id);
+      } else {
+        held.remove(id);
+      }
+      if (wasDone) done.add(id);
+      rethrow;
+    }
+    return true;
+  }
+
+  /// 체크를 켜고 끈다. 미래 날짜·계획 없는 날·목록에 없는 항목·보류한 항목·깨진 파일이면 false(쓰기 0).
+  Future<bool> toggle(DateTime day, String id, DateTime today) async {
+    if (!_canMark(day, id, today)) return false;
+    final k = dayKey(day);
+    if (heldOn(day).contains(id)) return false;
+    final set = _done.putIfAbsent(k, () => <String>{});
+    final on = !set.remove(id);
+    if (on) set.add(id);
+    try {
+      await _write();
+    } on Object {
+      if (on) {
+        set.remove(id);
+      } else {
+        set.add(id);
+      }
+      rethrow;
+    }
+    return true;
+  }
+
+  // ---- F-024 하루 평가 — 계획과 따로 `reviews.json`(계획 파일 형식은 그대로) ----------------
+  File get _reviewFile => File('${dir.path}/reviews.json');
+  final _reviews = <String, String>{};
+  var _reviewsLoaded = false;
+
+  /// 평가 파일이 깨졌으면 true — 평가 저장만 거부한다(계획 체크는 그대로).
+  bool reviewsBroken = false;
+
+  void _loadReviews() {
+    if (_reviewsLoaded) return;
+    _reviewsLoaded = true;
+    if (!_reviewFile.existsSync()) return;
+    try {
+      final j = jsonDecode(_reviewFile.readAsStringSync());
+      if (j is! Map) throw const FormatException('객체가 아님');
+      (j['reviews'] as Map).forEach((k, v) => _reviews[k as String] = v as String);
+    } on Object catch (e) {
+      logError('하루 평가 파일을 읽지 못함 — 평가 저장을 막는다(파일은 그대로 둠)', e);
+      _reviews.clear();
+      reviewsBroken = true;
+    }
+  }
+
+  /// 그날의 평가. 없으면 null.
+  String? reviewOn(DateTime day) {
+    _loadReviews();
+    return _reviews[dayKey(day)];
+  }
+
+  /// 그날 평가를 저장한다(공백뿐이면 지운다). 미래·깨진 파일·[maxReviewChars] 초과면 false(쓰기 0).
+  /// 같은 글이면 쓰지 않고 true. 쓰기 실패는 되돌리고 다시 던진다.
+  Future<bool> saveReview(DateTime day, String text, DateTime today) async {
+    _loadReviews();
+    if (reviewsBroken) return false;
+    if (dayKey(day).compareTo(dayKey(today)) > 0) return false;
+    if (text.length > maxReviewChars) return false;
+    final k = dayKey(day);
+    final value = text.trim().isEmpty ? null : text;
+    final old = _reviews[k];
+    if (old == value) return true;
+    if (value == null) {
+      _reviews.remove(k);
+    } else {
+      _reviews[k] = value;
+    }
+    try {
+      await _atomicWrite(_reviewFile, {'version': 1, 'reviews': Map.of(_reviews)});
+    } on Object {
+      if (old == null) {
+        _reviews.remove(k);
+      } else {
+        _reviews[k] = old;
+      }
+      rethrow;
+    }
+    logInfo('하루 평가 저장: $k ${value?.length ?? 0}자');
+    return true;
+  }
+
+  Future<void> _write() => _atomicWrite(_file, {
+        'version': 1,
+        'next_id': _nextId,
+        'lists': [
+          for (final v in _versions)
+            {'from': v.from, 'items': [for (final i in v.items) i.toJson()], if (v.weekend != null) 'weekend': v.weekend},
+        ],
+        'done': {
+          for (final e in _done.entries)
+            if (e.value.isNotEmpty) e.key: e.value.toList()..sort(),
+        },
+        'held': {
+          for (final e in _held.entries)
+            if (e.value.isNotEmpty) e.key: e.value.toList()..sort(),
+        },
+        'released': {
+          for (final e in _released.entries)
+            if (e.value.isNotEmpty) e.key: e.value.toList()..sort(),
+        },
+        'holidays': _holidays.toList()..sort(),
+      });
+
+  /// 임시 파일에 쓰고 바꿔치기 — 계획·평가 파일이 같이 쓴다(쓰기 지점 하나, file_writers_test).
+  Future<void> _atomicWrite(File file, Map<String, Object?> j) async {
+    try {
+      dir.createSync(recursive: true);
+      await writeAtomic(file, jsonEncode(j));
+    } on Object catch (e, st) {
+      logError('계획 파일 저장 실패(${file.uri.pathSegments.last})', e, st);
+      rethrow;
+    }
+  }
+}
+
+bool _idsEqual(List<String> a, List<String> b) => a.length == b.length && a.join('\n') == b.join('\n');
+
+bool _listEquals(List<PlanItem> a, List<PlanItem> b) {
+  if (a.length != b.length) return false;
+  for (var k = 0; k < a.length; k++) {
+    if (a[k] != b[k]) return false;
+  }
+  return true;
+}

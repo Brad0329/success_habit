@@ -59,6 +59,32 @@ void main() {
 
   String field(WidgetTester t) => t.widget<TextField>(find.byType(TextField)).controller!.text;
 
+  testWidgets('첫 화면 = 계획(planFirst, F-016): 켜자마자 계획 1번 열림·밑의 붙여넣기 칸은 그대로 채움 / 끄면 0번', (t) async {
+    dev.clipboard = '안녕 채록';
+    var opened = 0;
+    Widget app(bool first) => MaterialApp(
+          home: PasteScreen(
+            store: store,
+            device: dev.device,
+            sentClipFile: File('${tmp.path}/sent_clip.md5'),
+            planFirst: first,
+            onOpenPlan: (c) {
+              opened++;
+              Navigator.of(c).push(MaterialPageRoute<void>(builder: (_) => const Text('계획 화면')));
+            },
+          ),
+        );
+    await t.pumpWidget(app(true));
+    await t.pumpAndSettle();
+    expect(opened, 1);
+    expect(find.text('계획 화면'), findsOneWidget);
+    expect(t.widget<TextField>(find.byType(TextField, skipOffstage: false)).controller!.text, '안녕 채록');
+    await t.pumpWidget(const SizedBox());
+    await t.pumpWidget(app(false));
+    await t.pumpAndSettle();
+    expect(opened, 1);
+  });
+
   group('F-003 붙여넣기', () {
     testWidgets('포커스를 얻으면 클립보드 글이 칸에 채워지고 "클립보드에서 채움"', (t) async {
       dev.clipboard = '복사한 글';

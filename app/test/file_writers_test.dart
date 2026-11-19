@@ -30,6 +30,7 @@ const registry = <String, (int, String, String)>{
     "화면·공유 엔진이 쓴다 — 값은 시각 하나라 마지막 것만 남아도 된다(바꿔치기 아님, SCHEMA 원칙 6 예외). change_signal_test '두 주체가 번갈아 써도'",
   ),
   'paste_screen.dart': (1, 'ui', '채운 클립보드의 MD5(sent_clip.md5) — 붙여넣기 화면만'),
+  'plans.dart': (1, 'ui', 'F-016 계획 화면·설정 편집 화면만 — 공유 엔진·백그라운드 작업은 계획을 모른다'),
 };
 
 void main() {
@@ -41,7 +42,7 @@ void main() {
       if (n > 0 && name != _helper) found[name] = n;
     }
     // 정규식이 비어 '통과'하지 않게 건수를 건다 — 쓰는 파일을 옮겨 올 때마다 이 하한을 올린다.
-    expect(found.length, greaterThanOrEqualTo(4));
+    expect(found.length, greaterThanOrEqualTo(5));
     expect(found, {for (final e in registry.entries) e.key: e.value.$1},
         reason: '새 파일 쓰기가 생겼거나 사라졌다 — 누가 쓰는지 정해 registry에 적을 것(머리말)');
   });
