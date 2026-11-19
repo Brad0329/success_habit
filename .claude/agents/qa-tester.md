@@ -15,8 +15,8 @@ tools: Read, Grep, Glob, Bash, Write
 - 왜: 셸 파일 쓰기와 `cd` 복합이 서브에이전트 승인 대기의 최대 원인이다(노하우_승인_대기_최소화 §4).
 
 ## 테스트 규약 (초기화 때 프로젝트에 맞게 채울 것 — CLAUDE.md '테스트 규칙'과 같은 명령을 쓴다)
-- 자동화 테스트 실행: `flutter test` (Flutter 앱 폴더에서, 인자 없이 전체) + 훅·측정기를 고쳤으면 루트에서 `python -m pytest tests/`
-- 정적 점검: `flutter analyze` (Flutter 앱 폴더에서)
+- 자동화 테스트 실행: `python scripts/app.py test` (저장소 루트에서, 인자 없이 전체) + 훅·측정기·scripts·CLAUDE.md를 고쳤으면 루트에서 `python -m pytest tests/`
+- 정적 점검: `python scripts/app.py analyze` (저장소 루트에서 — flutter analyze + 복잡도 지표)
 - 통합 시나리오: `<핵심 플로우 목록 — 사용자가 실제로 밟는 경로>`
 - 이번 Phase의 **수용 기준(REQUIREMENTS.md)** 중 자동 검증 가능한 것은 실제 실행으로 확인
 
