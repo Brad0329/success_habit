@@ -1,0 +1,8 @@
+include: package:flutter_lints/flutter.yaml
+
+# 복잡도 상한(CLAUDE.md '테스트 규칙'). Dart 3.9라 분석기 플러그인 연동이 안 되어 CLI로만 돈다 —
+# `python scripts/app.py analyze`가 flutter analyze 뒤에 이 CLI를 함께 부른다(따로 두면 아무도 안 부른다 — 기존판 2026-11-04).
+# 함수 길이 지표는 이 도구에 없다(기존판 2026-10-29 확인). 위반은 함수 단위 예외(이유 주석)로만.
+dart_code_linter:
+  metrics:
+    cyclomatic-complexity: 20

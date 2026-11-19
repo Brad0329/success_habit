@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 앱 아이콘 앞 그림: 금색 만년필 펜촉(기존판 2026-10-29 사용자 선택 '금촉').
+     캔버스 108dp 중 가운데 66dp가 안전 영역 — 펜촉(원래 좌표 100 기준 46x77)을 0.5배로 가운데 둔다. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <group
+        android:scaleX="0.5"
+        android:scaleY="0.5"
+        android:translateX="29"
+        android:translateY="28.25">
+        <path
+            android:fillColor="#EF9F27"
+            android:pathData="M50,90 L31,50 C27,41 28,31 34,23 L41,13 L59,13 L66,23 C72,31 73,41 69,50 Z" />
+        <path
+            android:strokeColor="#042C53"
+            android:strokeWidth="2.4"
+            android:pathData="M50,54 L50,90" />
+        <path
+            android:fillColor="#042C53"
+            android:pathData="M45.5,50 a4.5,4.5 0 1,0 9,0 a4.5,4.5 0 1,0 -9,0 Z" />
+        <path
+            android:strokeColor="#042C53"
+            android:strokeWidth="1.6"
+            android:pathData="M38,27 Q50,33 62,27" />
+    </group>
+</vector>

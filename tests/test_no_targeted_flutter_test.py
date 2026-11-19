@@ -57,6 +57,30 @@ def test_정상_호출은_막지_않는다(command):
     assert not blocked(command)
 
 
+# ── 대행 스크립트(scripts/app.py)도 같은 판정 — 대행으로 우회되면 안 된다 ──────
+
+@pytest.mark.parametrize("command", [
+    "python scripts/app.py test test/foo_test.dart",
+    ".venv/Scripts/python.exe scripts/app.py test --plain-name x",
+    r".venv\Scripts\python.exe scripts\app.py test test/foo_test.dart",
+    "py scripts/app.py test --reporter compact",
+])
+def test_대행_호출도_인자가_붙으면_막는다(command):
+    assert blocked(command)
+
+
+@pytest.mark.parametrize("command", [
+    "python scripts/app.py test",
+    ".venv/Scripts/python.exe scripts/app.py test",
+    "python scripts/app.py test --reporter failures-only",
+    "python scripts/app.py analyze",
+    "python scripts/app.py build apk --debug",
+    "python scripts/approval_tool.py test foo",     # 다른 스크립트는 대행이 아니다
+])
+def test_대행_맨몸_호출은_막지_않는다(command):
+    assert not blocked(command)
+
+
 def test_빈_명령은_막지_않는다():
     assert not blocked("")
 

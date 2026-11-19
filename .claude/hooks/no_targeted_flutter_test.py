@@ -20,13 +20,16 @@ r"""`flutter test`에 인자를 붙이면 막는다 — 맨몸 전체 실행이 
 기다린 시간이다. F-032에서만 개별 실행에 약 11분을 썼고, 맨몸으로 돌렸으면 4분이었다.
 **그보다 큰 비용은 사용자가 8번 방해받은 것이고, 그중 판단할 것은 하나도 없었다.**
 
+**이 저장소에서는 앱이 `app/`에 있어 루트에서 `python scripts/app.py test`로 부른다**(기존판 2026-10-29 결정을 2026-11-19에 그대로 이었다).
+대행 스크립트 호출도 `flutter …`로 바꿔 읽어 같은 판정을 한다 — 대행으로 우회되면 안 된다.
+
 **막지 않는 것**:
-  - 맨몸 `flutter test` — **이것이 권장하는 대체 수단이다.**
+  - 맨몸 `flutter test`·`python scripts/app.py test` — **이것이 권장하는 대체 수단이다.**
   - `flutter analyze`·`flutter build apk …` 등 다른 하위 명령. 여기서 재지 않았으므로
     건드리지 않는다(YAGNI — 이 저장소 규칙).
 
 **정말 인자가 필요하면** 사용자에게 말하고 승인을 받는다. 훅을 우회하지 않는다 —
-확인 절차는 사용자가 이 에이전트를 통제하는 장치다(CLAUDE.md '우회하지 않는다').
+확인 절차는 사용자가 이 에이전트를 통제하는 장치다(CLAUDE.md '작업 속도 규칙'의 우회 금지).
 
 **훅이 고장 나면 막지 않고 통과시킨다** — 훅 결함이 도구 사용을 봉쇄하면 안 된다.
 
@@ -43,6 +46,10 @@ from hook_io import deny, read_command
 # `flutter test` 뒤에 **무언가 더 있는** 형태. 맨몸(뒤에 공백뿐)은 통과시킨다.
 TARGETED = re.compile(r"^\s*flutter\s+test\s+\S")
 
+# 대행 스크립트 호출(`python scripts/app.py …`, `.venv/Scripts/python.exe scripts\app.py …`)의 앞머리.
+# 이것을 `flutter`로 바꿔 읽은 뒤 위 판정을 그대로 쓴다.
+WRAPPER = re.compile(r"^\s*(?:\S*[/\\])?(?:python[0-9.]*|py)(?:\.exe)?\s+scripts[/\\]app\.py(?=\s|$)")
+
 # **딱 하나 판 예외** (2026-08-20 F-034 후속): 실패한 것만 출력하는 리포터.
 #
 # 전체 실행 출력이 68KB라 **어느 테스트가 실패했는지 읽기 어려웠다** — F-033·F-034의
@@ -58,8 +65,9 @@ REASON = (
     "`flutter test`에 인자를 붙이지 말 것 — **맨몸 전체 실행이 더 싸다.**\n"
     "  파일명·`--plain-name`은 매번 달라지고 그 형태를 덮는 규칙은 일부러 두지 않아\n"
     "  **호출마다 새 확인 창**이 뜬다 (실측: 전체 450건 27초 vs 파일 하나 158~206초).\n"
-    "  → 그냥 `flutter test`를 부른다. 실패한 테스트는 전체 실행에도 그대로 나온다.\n"
-    "  출력이 길어 실패만 보고 싶으면 **`flutter test --reporter failures-only`** —\n"
+    "  → 그냥 `python scripts/app.py test`(app/에서 맨몸 `flutter test`)를 부른다.\n"
+    "  실패한 테스트는 전체 실행에도 그대로 나온다.\n"
+    "  출력이 길어 실패만 보고 싶으면 **`python scripts/app.py test --reporter failures-only`** —\n"
     "  이 한 형태만 예외로 열려 있다(문자열이 고정이라 프롬프트를 안 만든다).\n"
     "  정말 다른 인자가 필요하면 **사용자에게 말하고 승인을 받는다.**"
 )
@@ -67,9 +75,10 @@ REASON = (
 
 def blocked(command: str) -> bool:
     """이 명령을 막아야 하는가. 테스트가 이 함수를 직접 부른다."""
-    if (command or "").strip() in ALLOWED_EXACT:
+    command = WRAPPER.sub("flutter", command or "", count=1)
+    if command.strip() in ALLOWED_EXACT:
         return False
-    return bool(TARGETED.match(command or ""))
+    return bool(TARGETED.match(command))
 
 
 def main() -> int:
