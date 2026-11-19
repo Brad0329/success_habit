@@ -10,7 +10,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 
-/// 직접 쓰기 + 바꿔치기 도우미(`atomic_file.dart` — Phase 003에서 옮긴다) 부르기. 도우미 파일 자체는 쓰는 주체가 아니라 뺀다.
+/// 직접 쓰기 + 바꿔치기 도우미(`atomic_file.dart`) 부르기. 도우미 파일 자체는 쓰는 주체가 아니라 뺀다.
 final _writeCall = RegExp(r'\.(writeAsString|writeAsBytes)(Sync)?\(|\bwriteAtomic(Sync)?\(');
 const _helper = 'atomic_file.dart';
 

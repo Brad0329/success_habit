@@ -50,7 +50,7 @@ class PasteScreen extends StatefulWidget {
   final Device device;
   final DateTime Function() now;
   /// 마지막으로 칸에 채운 클립보드의 MD5 — 앱을 다시 켜도 같은 클립보드를 또 채우지 않게(내용은 남기지 않는다).
-  /// 파일 이름은 옛 기억을 그대로 이어 쓰려고 `sent_clip.md5`를 유지한다(2026-11-02 '보낸 것'→'채운 것'으로 뜻 확장).
+  /// 파일 이름 `sent_clip.md5`는 기존판에서 물려받았다(뜻은 '보낸 것'이 아니라 '채운 것').
   final File? sentClipFile;
 
   /// 앱 안 녹음(F-007). null이면 마이크 버튼을 그리지 않는다.
@@ -279,6 +279,7 @@ class PasteScreenState extends State<PasteScreen> with WidgetsBindingObserver {
     try {
       if (file == null || !file.existsSync() || file.lengthSync() == 0) {
         logWarn('녹음 파일이 없거나 비어 있음: $path (${took.inMilliseconds}ms)');
+        if (file != null && file.existsSync()) file.deleteSync(); // 0바이트 임시 파일은 남길 것이 없다
         _set(Status(StatusKind.fail, took < voice.voiceMinimum ? '너무 짧아 저장하지 않음' : '녹음 파일을 만들지 못했습니다'));
         return false;
       }

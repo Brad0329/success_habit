@@ -37,8 +37,8 @@ void main() {
   final blocks = _catchBlocks();
 
   test('catch 블록을 실제로 찾는다(정규식이 비어 통과하지 않게)', () {
-    // 지금 lib의 catch는 3곳(log.dart 2 · theme.dart 1) — 소스를 옮겨 올 때마다 이 하한을 올린다(기존판은 60).
-    expect(blocks.length, greaterThanOrEqualTo(3));
+    // Phase 003 기준 lib의 catch는 30곳 남짓 — 소스를 옮겨 올 때마다 이 하한을 올린다(기존판은 60).
+    expect(blocks.length, greaterThanOrEqualTo(30));
   });
 
   test('모든 catch 블록이 로그·다시 던지기·이유 주석 중 하나를 담는다', () {

@@ -55,6 +55,43 @@ void main() {
     expect([m['input'], m['kind'], m['device'], m['source'], m['caption']], ['share', 'url', 'phone', 'com.android.chrome', null]);
     expect(notes, [('채록 저장됨', '1건 저장됨', 1)]);
     expect(signal.changed(), isTrue);
+    final names = [for (final f in records.listSync(recursive: true).whereType<File>()) f.uri.pathSegments.last];
+    expect(names.where((n) => n.endsWith('.txt') && !n.endsWith('.meta.json')).length, 1);
+    expect(names.length, 2);
+  });
+
+  test('공유해 온 앱을 안드로이드가 알려 주지 않으면 source는 null', () async {
+    await share(const ShareInput(text: '출처 모름'));
+    final m = (await metas()).single;
+    expect(m.containsKey('source'), isTrue);
+    expect(m['source'], isNull);
+  });
+
+  test('파일은 하나씩 읽어 저장한다 — 두 번째 파일을 읽기 전에 첫 건이 이미 나무에 있다', () async {
+    final a = file('a.png', [1], mime: 'image/png'), b = file('b.png', [2], mime: 'image/png');
+    final seenAtRead = <int>[];
+    final r = buildShare(ShareInput(files: [a, b]), (p) {
+      seenAtRead.add(records.existsSync() ? records.listSync(recursive: true).whereType<File>().length : 0);
+      return File(p).readAsBytesSync();
+    });
+    expect(seenAtRead, isEmpty); // 만들 때는 아무것도 읽지 않는다
+    expect(r.count, 2);
+    for (final (item, data) in r.items) {
+      store.save(item, data);
+    }
+    expect(seenAtRead, [0, 2]);
+  });
+
+  test('3개 중 2번째 사본을 읽지 못하면(파일 없음) 저장한 것을 되돌린다: 파일 0개, 알림 "저장 실패"', () async {
+    final files = [
+      file('p1.png', [1], mime: 'image/png'),
+      SharedFile(path: '${inbox.path}/없는파일', name: 'p2.png', mime: 'image/png'),
+      file('p3.png', [3], mime: 'image/png'),
+    ];
+    await share(ShareInput(files: files));
+    expect(records.existsSync() ? records.listSync(recursive: true).whereType<File>().toList() : [], isEmpty);
+    expect(notes, [('저장 실패', '공유를 받지 못했습니다 — 다시 공유하세요', 1)]);
+    expect(signal.changed(), isFalse);
   });
 
   test('파일 1개 → 1건, 원본 MD5 = 받은 파일, 이름·종류·MIME / MIME을 못 받으면 octet-stream·file / 묶음 표시 없음', () async {

@@ -31,7 +31,7 @@ class CollectedItem {
       : pages = const [],
         groupTotal = null;
 
-  /// F-028 사진 묶음 한 건 — 대표 장([rep])에 장 순서대로의 [pages](대표 포함)를 붙인 것. 캐시에는 장마다 따로 남는다.
+  /// F-028 사진 묶음 한 건 — 대표 장([rep])에 장 순서대로의 [pages](대표 포함)를 붙인 것. [CollectionSnapshot.raw]에는 장마다 따로 남는다.
   CollectedItem._group(CollectedItem rep, this.pages, this.groupTotal)
       : record = rep.record,
         meta = rep.meta,
@@ -165,7 +165,7 @@ List<CollectedItem> groupPhotoItems(List<CollectedItem> raw) {
   ];
 }
 
-/// 한 번 읽은 목록. [items]는 최신 먼저, F-028 사진 묶음은 한 건([groupPhotoItems]). [raw]는 장마다(캐시에 저장하는 것).
+/// 한 번 읽은 목록. [items]는 최신 먼저, F-028 사진 묶음은 한 건([groupPhotoItems]). [raw]는 장마다(다음 새로 고침이 이어 쓰는 것).
 class CollectionSnapshot {
   CollectionSnapshot(this.raw, {required this.unreadable, required this.failed, required this.at})
       : items = groupPhotoItems(raw);

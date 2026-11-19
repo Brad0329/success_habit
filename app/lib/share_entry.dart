@@ -78,16 +78,20 @@ Future<void> collectShare(
   final result = buildShare(input, (p) => File(p).readAsBytesSync());
   final done = <NewRecord>[];
   var failed = false;
-  for (final (item, data) in result.items) {
+  final items = result.items.iterator;
+  while (true) {
     try {
+      if (!items.moveNext()) break; // 여기서 그 건의 파일을 읽는다 — 읽기 실패도 아래에서 되돌린다
+      final (item, data) = items.current;
       store.save(item, data);
       done.add(item);
       logInfo('공유 수집: ${item.id} ${item.sidecar['kind']} source=${item.sidecar['source']}');
-    } on SaveFailed {
+    } on Object catch (e, st) {
+      if (e is! SaveFailed) logError('공유받은 파일 읽기 실패', e, st);
       // 원인은 PhoneStore.save가 로그에 남겼다. 일부만 남기지 않는다(사용자 결정 2026-11-19) —
       // 사이드카의 group_size가 이미 정해져 있어, 일부만 남으면 묶음이 영영 'N장 중 M장'이다.
       failed = true;
-      logWarn('공유 저장 실패 — 이번 공유로 쓴 ${done.length}건을 되돌린다(전체 ${result.items.length}건)');
+      logWarn('공유 저장 실패 — 이번 공유로 쓴 ${done.length}건을 되돌린다(전체 ${result.count}건)');
       done.forEach(store.undo);
       done.clear();
       break;

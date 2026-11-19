@@ -4,6 +4,7 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:chaerok/collection_list.dart';
+import 'package:chaerok/collection_screen.dart' show groupPagesLabel;
 import 'package:chaerok/log.dart';
 import 'package:chaerok/phone_store.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -189,6 +190,7 @@ void main() {
       expect(g.time, '10:00');
       expect([for (final p in g.pages) p.base], [p1, rep, p10]);
       expect(g.preview, '사진 3장');
+      expect(groupPagesLabel(g), '사진 3장');
       expect(g.missingPages, 0);
       expect(g.otherBases.toSet(), {p10, p1});
       expect(s.raw.length, 5);
@@ -220,6 +222,7 @@ void main() {
       expect(s.items.single.pages.length, 2);
       expect(s.items.single.groupTotal, 3);
       expect(s.items.single.missingPages, 1);
+      expect(groupPagesLabel(s.items.single), '3장 중 2장');
       expect(s.unreadable, 1);
     });
 

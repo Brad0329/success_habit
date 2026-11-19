@@ -139,6 +139,20 @@ void main() {
       expect(field(t), '한 번만');
     });
 
+    testWidgets('보낸 클립보드도 돌아오거나 앱을 다시 켰을 때 다시 채우지 않는다(두 번 보내기 방지)', (t) async {
+      dev.clipboard = '보낼 글';
+      await open(t);
+      await send(t);
+      expect(field(t), '');
+      dev.focus.add(null);
+      await t.pumpAndSettle();
+      expect(field(t), '');
+      await t.pumpWidget(const SizedBox());
+      await open(t);
+      expect(field(t), '');
+      expect(files('.txt').length, 1);
+    });
+
     testWidgets('화면에 "보내지 못한 것"·"재전송"·"전송 실패"·"보관 중"이 나오지 않고, 로그에 칸의 글이 없다', (t) async {
       dev.clipboard = '클립비밀XYZ';
       await open(t);

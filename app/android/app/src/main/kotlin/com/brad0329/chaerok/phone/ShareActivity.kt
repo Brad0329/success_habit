@@ -42,8 +42,9 @@ class ShareActivity : FlutterActivity() {
                             val share = takeShare(intent)
                             main.post { result.success(share) }
                         } catch (e: Exception) {
-                            Log.e(TAG, "공유 받기 실패", e)
-                            main.post { result.error("share", e.toString(), null) }
+                            Log.e(TAG, "공유 받기 실패: ${e.javaClass.simpleName}")
+                            // 예외 문구에 content:// 주소·파일 이름이 섞일 수 있어 종류만 넘긴다(Dart가 앱 로그에 적는다).
+                            main.post { result.error("share", e.javaClass.simpleName, null) }
                         }
                     }.start()
                 }
@@ -58,7 +59,13 @@ class ShareActivity : FlutterActivity() {
 
     private fun takeShare(intent: Intent): Map<String, Any?> {
         val inbox = File(filesDir, "share_inbox/${UUID.randomUUID()}").apply { mkdirs() }
-        val files = streams(intent).mapIndexed { i, uri -> copy(uri, intent.type, File(inbox, "$i")) }
+        val files = try {
+            streams(intent).mapIndexed { i, uri -> copy(uri, intent.type, File(inbox, "$i")) }
+        } catch (e: Exception) {
+            // 복사 도중 실패하면 경로가 Dart에 가지 않아 치울 주체가 없다 — 앞서 복사한 사본(파일당 최대 100MB)을 여기서 지운다.
+            if (!inbox.deleteRecursively()) Log.w(TAG, "공유 사본 폴더를 지우지 못함: ${inbox.name}")
+            throw e
+        }
         return mapOf(
             "text" to intent.getCharSequenceExtra(Intent.EXTRA_TEXT)?.toString(),
             "source" to source(),
@@ -97,15 +104,15 @@ class ShareActivity : FlutterActivity() {
                 if (s >= 0 && !c.isNull(s)) size = c.getLong(s)
             }
         }
-        if (name == null) Log.w(TAG, "파일 이름을 못 받음: $uri")
+        if (name == null) Log.w(TAG, "파일 이름을 못 받음")
         val mime = contentResolver.getType(uri) ?: intentType?.takeUnless { it.contains('*') }
         val info = mutableMapOf<String, Any?>("name" to name, "mime" to mime, "path" to null, "tooBig" to false)
         if ((size ?: 0) > MAX_BYTES) {
-            Log.w(TAG, "용량 초과(크기 정보 ${size}B): $name")
+            Log.w(TAG, "용량 초과(크기 정보 ${size}B)")
             info["tooBig"] = true
             return info
         }
-        val input = contentResolver.openInputStream(uri) ?: throw IllegalStateException("열 수 없음: $uri")
+        val input = contentResolver.openInputStream(uri) ?: throw IllegalStateException("공유받은 파일을 열 수 없음")
         var total = 0L
         input.use { inp ->
             dest.outputStream().use { out ->
@@ -121,7 +128,7 @@ class ShareActivity : FlutterActivity() {
         }
         if (total > MAX_BYTES) {
             dest.delete()
-            Log.w(TAG, "용량 초과(복사 중 ${MAX_BYTES}B 넘음, 복사본 지움): $name")
+            Log.w(TAG, "용량 초과(복사 중 ${MAX_BYTES}B 넘음, 복사본 지움)")
             info["tooBig"] = true
             return info
         }

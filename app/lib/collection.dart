@@ -9,7 +9,7 @@ import 'log.dart';
 import 'phone_store.dart';
 
 /// 읽는 쪽 이름 규칙은 여기 한 곳(기존판 D7 2026-11-15: 목록·지우기가 따로 적었다). 쓰는 규칙은 record.dart `baseName`·`monthFolder` —
-/// 둘이 맞는지는 collection_list_test 'D7 …'가 대조한다.
+/// 둘이 맞는지는 phone_store_test '읽는 이름 규칙이 쓰는 이름 규칙과 맞는다(D7)'가 대조한다.
 const _base = r'(\d{8})-(\d{6})_([0-9a-f]{8})';
 
 /// `YYYYMMDD-HHMMSS_<8자>.<확장자>` / `….meta.json`.
@@ -71,7 +71,7 @@ int _pair(Map<String, ListedRecord> listed, List<StoreEntry> files, String who) 
     // 모르는 덧붙임 파일(쓰다 만 `.tmp` 포함)이라 원본으로 오인하면 진짜 원본을 가린다 — 건너뛴다(읽지 못함으로 세지 않음).
     final isAi = aiTailRe.hasMatch(tail), isUser = userTailRe.hasMatch(tail), isTranscript = transcriptTailRe.hasMatch(tail);
     if (tail != 'meta.json' && !isAi && !isUser && !isTranscript && tail.contains('.')) {
-      logInfo('$who: 원본·사이드카가 아닌 덧붙임 파일 건너뜀(꼬리 .$tail)');
+      logInfo('$who: 원본·사이드카가 아닌 덧붙임 파일 건너뜀($base, 꼬리 ${tail.length}자)');
       continue;
     }
     final e = listed.putIfAbsent(base, () => ListedRecord(base));

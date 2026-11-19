@@ -42,29 +42,46 @@ class ShareInput {
 }
 
 class ShareResult {
-  ShareResult(this.items, this.tooBig, {this.empty = false});
-  final List<(NewRecord, Uint8List)> items;
+  ShareResult(this.items, this.count, this.tooBig, {this.empty = false});
+
+  /// 저장할 수집물 — **돌 때마다 그 건의 파일을 읽는다**(한 번의 공유 전부를 한꺼번에 메모리에 올리지 않는다, 파일당 최대 100MB).
+  /// 한 번만 돈다 — 건수는 [count]로 본다.
+  final Iterable<(NewRecord, Uint8List)> items;
+  final int count;
   final List<String> tooBig; // 저장하지 않은 파일 이름
   final bool empty; // 받은 것이 없거나 빈 텍스트뿐
 }
 
-String? _captionOf(String? text) => record.captionOrNone(text);
-
 /// 파일이 있으면 함께 온 텍스트가 각 파일의 caption / 텍스트만 오면 받은 문장이 원본.
 ShareResult buildShare(ShareInput input, Uint8List Function(String path) read) {
-  final items = <(NewRecord, Uint8List)>[];
-  final tooBig = <String>[];
-  final caption = _captionOf(input.text);
-  final count = input.files.where((f) => !f.tooBig && f.path != null).length;
-  final groupId = count >= 2 ? record.newId() : null;
-  final groupSize = count >= 2 ? count : null;
-  for (final f in input.files) {
-    if (f.tooBig || f.path == null) {
-      tooBig.add(f.name ?? '이름 없는 파일');
-      continue;
-    }
+  final ok = [for (final f in input.files) if (!f.tooBig && f.path != null) f];
+  final tooBig = [for (final f in input.files) if (f.tooBig || f.path == null) f.name ?? '이름 없는 파일'];
+  if (input.files.isNotEmpty) {
+    return ShareResult(_fileRecords(input, ok, read), ok.length, tooBig);
+  }
+  final body = input.text;
+  if (body == null) return ShareResult(const [], 0, tooBig, empty: true);
+  final String kind;
+  try {
+    kind = record.classifyText(body);
+  } on record.EmptyTextError {
+    // 오류가 아니라 정해진 흐름 — empty를 받은 쪽(share_entry.dart)이 로그 + '보낼 내용 없음' 알림
+    return ShareResult(const [], 0, tooBig, empty: true);
+  }
+  final text = prepare(Uint8List.fromList(utf8.encode(body)),
+      input: 'share', kind: kind, source: input.source, originalName: null, mime: record.textMime);
+  return ShareResult([text], 1, tooBig);
+}
+
+/// 파일마다 수집물 하나 — 읽기는 그 건을 꺼낼 때. 묶음 표시(2건 이상)는 읽기 전에 정해진다.
+Iterable<(NewRecord, Uint8List)> _fileRecords(
+    ShareInput input, List<SharedFile> files, Uint8List Function(String path) read) sync* {
+  final caption = record.captionOrNone(input.text);
+  final groupId = files.length >= 2 ? record.newId() : null;
+  final groupSize = files.length >= 2 ? files.length : null;
+  for (final f in files) {
     final mime = f.mime ?? fallbackMime;
-    items.add(prepare(
+    yield prepare(
       read(f.path!),
       input: 'share',
       kind: record.kindForMime(mime),
@@ -74,18 +91,6 @@ ShareResult buildShare(ShareInput input, Uint8List Function(String path) read) {
       caption: caption,
       groupId: groupId,
       groupSize: groupSize,
-    ));
+    );
   }
-  final body = input.text;
-  if (input.files.isEmpty && body != null) {
-    try {
-      final kind = record.classifyText(body);
-      items.add(prepare(Uint8List.fromList(utf8.encode(body)),
-          input: 'share', kind: kind, source: input.source, originalName: null, mime: record.textMime));
-    } on record.EmptyTextError {
-      // 오류가 아니라 정해진 흐름 — empty를 받은 쪽(share_entry.dart)이 로그 + '보낼 내용 없음' 알림
-      return ShareResult(items, tooBig, empty: true);
-    }
-  }
-  return ShareResult(items, tooBig, empty: items.isEmpty && tooBig.isEmpty);
 }

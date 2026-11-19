@@ -42,7 +42,7 @@ filesDir/
   plans/plans.json, reviews.json   ← 사용자 데이터. 계획·하루 평가
   memorize/memorize.json           ← 사용자 데이터. 외울 문장
   settings/                        ← 사용자 설정 (API 키·비밀번호·카테고리 등)
-  classify_state.json, classify_requests/, changed.txt, sent_clip.md5, …  ← 산출물 (목록 캐시는 두지 않는다 — F-010 결정 2026-11-19)
+  classify_state.json, classify_requests/, changed.txt, sent_clip.md5, voice_tmp/, share_inbox/, chaerok.log, …  ← 산출물·임시 (목록 캐시는 두지 않는다 — F-010 결정 2026-11-19)
 ```
 - **결정**: 수집물은 `records/YYYY-MM/`에 기존판 Drive와 같은 파일 이름으로 둔다.
 - **이유**: 기존 코드의 짝짓기(`listRecords`)·덧붙임 파일 선택(`ai_result.dart`)·지우기(`<base>.` 접두 전부)가
