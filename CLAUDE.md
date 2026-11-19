@@ -14,7 +14,7 @@ Flutter(안드로이드) + Kotlin 공유 액티비티로 처음부터 만드는 
 
 ## 현재 단계
 - 전체 Phase 체크리스트/아키텍처의 **단일 원본 = `work_log/plan.md`** (여기에 중복 기재 금지)
-- 현재: **Phase 001 — 요구사항/설계 확정** (Phase 완료 시 이 줄과 plan.md 체크박스를 함께 갱신)
+- 현재: **Phase 002 — 프로젝트 세팅** (Phase 완료 시 이 줄과 plan.md 체크박스를 함께 갱신)
 
 ## 새 세션 시작 시
 - 훅(`session_context.py`)이 plan.md의 현재 Phase·읽을 Phase 로그·실테스트 대기·원격에 안 올라간 커밋 수를 주입한다 — 지시대로 읽는다.
