@@ -7,11 +7,14 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:chaerok/log.dart';
+import 'package:chaerok/photo_group.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 /// 경계 테스트가 있는 상한 — '파일:이름' → 테스트 위치.
 const boundaryTested = {
   'log.dart:_maxBytes': 'limits_test 로그 회전',
+  'voice.dart:voiceLimit': "paste_screen_test '상한: 59분 59초에는 녹음 중, 60분 00초에'",
+  'photo_group.dart:maxGroupPages': 'limits_test 묶음 장수',
 };
 
 /// 경계 테스트를 두지 않는 것 — 이유와 함께.
@@ -51,10 +54,21 @@ void main() {
       final found = scanLimitNames();
       // 정규식이 좁아져 아무것도 못 찾으면 아래 비교가 공집합끼리 통과한다 — 건수를 건다(조용한 절단 금지).
       // 상한이 든 파일을 옮겨 올 때마다 이 하한을 올린다.
-      expect(found.length, greaterThanOrEqualTo(1), reason: '$found');
+      expect(found.length, greaterThanOrEqualTo(3), reason: '$found');
       final known = {...boundaryTested.keys, ...excludedLimits.keys};
       expect(found.difference(known), isEmpty, reason: '경계 테스트(at/at+1)를 넣고 boundaryTested에 올리거나, 이유와 함께 excludedLimits에');
       expect(known.difference(found), isEmpty, reason: '등록부에 lib/에 없는 이름이 있다');
+    });
+  });
+
+  group('F-028 묶음', () {
+    test('묶음 장수: 20장이면 모두 보낼 장, 21장이면 마지막 1장이 over_limit', () {
+      List<GroupPage> pages(int n) => [for (var k = 0; k < n; k++) GroupPage('b$k', 'image/png', Uint8List(1))];
+      GroupPick pick(int n) => pickPages(pages(n), mimes: {'image/png'}, budget: 1000, maxImage: 1000);
+      expect(pick(20).sent.length, 20);
+      expect(pick(20).skipped, isEmpty);
+      expect(pick(21).sent.length, 20);
+      expect(pick(21).skipped, [('b20', 'over_limit')]);
     });
   });
 

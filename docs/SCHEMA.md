@@ -18,6 +18,8 @@
 4. **수집물 파일은 한 번 쓰면 고치지 않는다(추가만).** AI 결과·사용자 수정은 새 파일을 덧붙이고, 읽을 때 가장 늦은 것을 고른다.
 5. **사용자 데이터와 산출물을 다른 폴더에 둔다.** 산출물(캐시·상태)은 지워도 사용자 데이터에서 다시 만들 수 있어야 한다.
 6. **모든 쓰기는 임시 파일에 쓰고 이름 바꾸기**(기존 `atomic_file.dart`). 쓰는 곳은 `file_writers_test` 등록부로 고정한다.
+   예외: 목록 갱신 신호 파일(`changed.txt`)과 로그는 직접 쓴다 — 깨져도 다시 만들어지는 산출물이고, 두 엔진이 같은 임시 이름으로
+   동시에 바꿔치기하면 한쪽이 실패한다(2026-11-19).
 ## 핵심 엔티티와 관계
 - **수집물(record)** 1건 = 원본 파일 1 + 사이드카 1 + 덧붙임 파일 0..N(ai · user · transcript). 모두 같은 base로 묶인다.
 - **사진 묶음** = 수집물 N건이 같은 `group_id`를 가진다. AI 결과는 대표 장 1건에만 붙는다.
@@ -31,7 +33,7 @@
 ```
 filesDir/
   records/YYYY-MM/                 ← 사용자 데이터. 수집 시각 기준 월별
-    <base>.<확장자>                  원본 (텍스트·URL은 .txt, 그 외는 원래 확장자)
+    <base>.<확장자>                  원본 (텍스트·URL은 .txt, 그 외는 원래 확장자 — 영문·숫자 1~10자일 때만, 아니면 MIME 표 → bin)
     <base>.meta.json                사이드카
     <base>.ai-<YYYYMMDD-HHMMSS>.json        AI 분류·정리 결과
     <base>.user-<YYYYMMDD-HHMMSS>.json      사용자 수정
@@ -40,7 +42,7 @@ filesDir/
   plans/plans.json, reviews.json   ← 사용자 데이터. 계획·하루 평가
   memorize/memorize.json           ← 사용자 데이터. 외울 문장
   settings/                        ← 사용자 설정 (API 키·비밀번호·카테고리 등)
-  collection_cache/, classify_state.json, classify_requests/, changed.txt, sent_clip.md5, …  ← 산출물
+  classify_state.json, classify_requests/, changed.txt, sent_clip.md5, …  ← 산출물 (목록 캐시는 두지 않는다 — F-010 결정 2026-11-19)
 ```
 - **결정**: 수집물은 `records/YYYY-MM/`에 기존판 Drive와 같은 파일 이름으로 둔다.
 - **이유**: 기존 코드의 짝짓기(`listRecords`)·덧붙임 파일 선택(`ai_result.dart`)·지우기(`<base>.` 접두 전부)가
@@ -67,7 +69,7 @@ filesDir/
 ### 수집물을 가리키는 방법 (Drive ID를 대체)
 - **결정**: 수집물 = base, 그 안의 파일 = 파일 이름(나무 안 상대 경로 `records/YYYY-MM/<이름>`).
   - 대화 기록의 맥락 블록(`ContextBlock.fileId`) → 상대 경로.
-  - 목록 캐시의 `original_id`·`meta_id`·`folder_id` → 없앤다(경로는 base에서 나온다).
+  - 목록 캐시의 `original_id`·`meta_id`·`folder_id` → 없앤다(Phase 003에서 디스크 캐시 자체를 두지 않았다 — 마지막 목록은 메모리에만).
   - 이미지 보관(`PhotoCache`) → 없앤다(원본이 폰에 있다).
   - 분류 상태의 미리 받은 ID(`ClassifyState.ids`) → 없앤다. 결과 파일 이름의 시각이 겹치지 않게만 한다.
 - **이유**: base와 사이드카 `id`는 폰에서 만들어지고 변하지 않는다. 대화·외울 문장·분류 상태가 이미 base를 쓴다.
@@ -81,6 +83,8 @@ filesDir/
 ## 변경 이력 (최신이 위)
 | 날짜 | 변경안 (무엇을, 왜, 영향 범위) | 사용자 확인 | 반영 커밋 |
 |---|---|---|---|
+| 2026-11-19 | 원본 파일 이름의 확장자 규칙 — 원래 확장자는 영문·숫자 1~10자일 때만 쓰고, 아니면 MIME 표 → `bin`. 왜: 확장자가 폰 파일 경로의 일부가 됐다(공유해 온 앱이 준 이름 = 밖에서 들어오는 입력). 영향: 새로 저장하는 건의 파일 이름만 — 사이드카 `original_name`은 원래대로, 읽는 규칙·기존 형식 파일 읽기는 그대로 | ✅ 2026-11-19 | Phase 003 커밋 |
+| 2026-11-19 | 설계 원칙 6에 예외 — 신호 파일(`changed.txt`)·로그는 직접 쓴다. 저장 형식 변경 아님 | ✅ 2026-11-19 | Phase 003 커밋 |
 | 2026-11-19 | 내보내기 zip도 뺀다(사용자 결정) — zip 절 삭제, `memorize.json`에 `version`을 넣으려던 안 취소. 폰 저장 나무 자체는 그대로 | ✅(사용자 지시) | — |
 | 2026-11-19 | Drive 백업·복원을 뺀다(사용자 결정) — Drive 쪽 나무·백업 장부(`backup/`)·지울 것 목록 삭제. 폰 저장 나무 자체는 그대로 | ✅(사용자 지시) | — |
 | 2026-11-19 | 최초 초안 — 폰 전용 저장 나무, base 키, 사이드카 14항목 유지, Drive 백업·zip이 같은 나무를 쓴다(백업·zip은 위 두 줄에서 빠짐) | ✅ 2026-11-19 | 192e1f2 |

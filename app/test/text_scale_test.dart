@@ -5,8 +5,11 @@ import 'dart:io';
 
 import 'package:chaerok/log.dart';
 import 'package:chaerok/main.dart';
+import 'package:chaerok/phone_store.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+import 'fakes.dart';
 
 /// 엔진이 메인 화면의 설정을 잃은 상태 — 디버그 빌드의 실제 오류 문구 그대로.
 class _BrokenScaler extends TextScaler {
@@ -33,7 +36,7 @@ void main() {
 
     await t.pumpWidget(MediaQuery(
       data: MediaQueryData.fromView(t.view).copyWith(textScaler: const _BrokenScaler()),
-      child: const ChaerokApp(),
+      child: ChaerokApp(store: PhoneStore(Directory('${tmp.path}/records')), device: FakeDevice(tmp).device),
     ));
     await t.pumpAndSettle();
     debugPrint = print;

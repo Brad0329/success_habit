@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- F-010 녹음 재생 — MainActivity.openBytes가 쓰는 캐시 폴더 open/만 연다 -->
+<paths>
+    <cache-path name="open" path="open/" />
+</paths>
