@@ -27,7 +27,7 @@ class PlanScreen extends StatefulWidget {
 /// 평가 칸에서 치다 멈춘 뒤 저장까지(F-024 '약 1초').
 const reviewSaveDelay = Duration(seconds: 1);
 
-class _PlanScreenState extends State<PlanScreen> {
+class _PlanScreenState extends State<PlanScreen> with WidgetsBindingObserver {
   late DateTime _month; // 그 달 1일
   late DateTime _sel;
   String? _note;
@@ -54,17 +54,30 @@ class _PlanScreenState extends State<PlanScreen> {
     _month = DateTime(_today.year, _today.month);
     _sel = _today;
     _loadReview(_sel);
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  /// 앱이 화면에서 내려갈 때(뒤로·홈·최근 앱에서 밀어 끄기 모두 paused를 거친다) 안 저장한 평가를 저장한다.
+  /// 계획 화면이 맨 밑 화면이면 뒤로 = 앱 닫힘이라 dispose가 불린다는 보장이 없다(2026-11-19 spec-checker R1).
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused) _flushReview();
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     // 화면을 나갈 때 아직 안 저장한 글을 저장한다(화면은 사라지므로 결과는 로그로만 — _saveReview가 남긴다).
-    if (_debounce?.isActive ?? false) {
-      _debounce!.cancel();
-      unawaited(_saveReview(_reviewDay, _review.text, mounted: false));
-    }
+    _flushReview(mounted: false);
     _review.dispose();
     super.dispose();
+  }
+
+  /// 1초 기다리는 중인 평가가 있으면 지금 저장한다. 없으면 아무것도 안 한다(고친 게 없는데 쓰지 않게).
+  void _flushReview({bool mounted = true}) {
+    if (!(_debounce?.isActive ?? false)) return;
+    _debounce!.cancel();
+    unawaited(_saveReview(_reviewDay, _review.text, mounted: mounted));
   }
 
   void _loadReview(DateTime d) {
@@ -105,10 +118,7 @@ class _PlanScreenState extends State<PlanScreen> {
 
   /// 날짜를 누름 — 안 저장한 평가를 먼저 저장하고, 그날 평가를 칸에 싣는다. 평가가 있는 날이면 말풍선(같은 날 다시 누르면 닫힘).
   void _select(DateTime d) {
-    if (_debounce?.isActive ?? false) {
-      _debounce!.cancel();
-      unawaited(_saveReview(_reviewDay, _review.text));
-    }
+    _flushReview();
     final text = s.reviewOn(d);
     setState(() {
       _bubble = (text != null && _bubble != d) ? d : null;

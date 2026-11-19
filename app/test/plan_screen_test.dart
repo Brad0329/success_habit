@@ -98,6 +98,28 @@ void main() {
     expect(find.text('저장됨 · 21:04'), findsOneWidget);
   });
 
+  // 계획 화면이 맨 밑 화면이면 뒤로 = 앱 닫힘이라 dispose가 불린다는 보장이 없다(2026-11-19 spec-checker R1).
+  // 앱이 화면에서 내려가는 순간(뒤로·홈·최근 앱에서 밀어 끄기 모두 paused를 거친다) 안 저장한 글을 저장한다.
+  testWidgets('1초 전에 앱이 내려가면(paused) 그때 저장 / 고친 게 없으면 저장 0', (t) async {
+    final s = await show(t);
+    t.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+    t.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+    t.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+    expect(s.saved, isEmpty, reason: '고친 게 없으면 저장하지 않는다');
+    t.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+    t.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+    t.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await t.enterText(field, '쓰다가 바로 뒤로');
+    await t.pump(const Duration(milliseconds: 300));
+    t.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+    t.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+    t.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+    await t.pump();
+    expect(s.saved, [('2026-11-13', '쓰다가 바로 뒤로')]);
+    await t.pump(const Duration(seconds: 2));
+    expect(s.saved.length, 1, reason: '타이머가 풀려 두 번 저장하지 않는다');
+  });
+
   testWidgets('1초 전에 다른 날짜를 누르면 이전 날 글이 저장되고 칸은 그날 글로', (t) async {
     final s = await show(t, reviews: {10: '10일의 글'});
     await t.enterText(field, '오늘 글');
