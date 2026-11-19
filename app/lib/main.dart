@@ -1,4 +1,4 @@
-// ★ 목록·붙여넣기 숨김(2026-11-19 사용자 결정 — 앱 이름 '계획실천'): 화면에서 완전히 안 보이게 조립만 주석으로 막았다.
+// ★ 목록·붙여넣기 숨김(2026-11-19 사용자 결정 — 앱 이름 '성공습관'): 화면에서 완전히 안 보이게 조립만 주석으로 막았다.
 //   소스(paste_screen·collection_*·phone_store 등)와 그 테스트는 그대로 있다. 되살리려면 이 파일의 `[숨김]` 주석을 풀고
 //   `AppNav(showPaste: false)`를 지우고 home을 PasteScreen으로 되돌린다(`app_menu_test`의 조립 테스트도 함께).
 import 'dart:io';
@@ -95,7 +95,7 @@ class ChaerokApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: '계획실천',
+      title: '성공습관',
       theme: chaerokTheme(Brightness.light),
       darkTheme: chaerokTheme(Brightness.dark),
       // F-017 ⋯ 메뉴 — Navigator 바깥에 두어 쌓인 모든 화면이 찾는다.
