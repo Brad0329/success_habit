@@ -60,7 +60,7 @@ class CollectedItem {
   final String? text;
 
   /// 읽은 AI 결과·사용자 수정([ResultRef.data]가 null이면 파일이 깨졌던 것 — 다시 읽지 않는다).
-  /// 결과 파일을 만드는 것은 Phase 004(F-011)부터다 — 여기서는 있는 파일을 SCHEMA 규칙대로 읽기만 한다.
+  /// 결과 파일을 만드는 것은 Phase 005(F-011)부터다 — 여기서는 있는 파일을 SCHEMA 규칙대로 읽기만 한다.
   final ResultRef? ai;
   final ResultRef? user;
 

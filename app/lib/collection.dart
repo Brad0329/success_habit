@@ -1,7 +1,7 @@
 /// 수집물 나무를 이름 규칙으로 읽기 — 원본·사이드카·덧붙임 파일을 base로 짝짓는다(F-035 · F-010).
 ///
 /// **읽기만 한다**: [RecordReader]만 받는다 — 쓰기·지우기는 타입에 없어 부를 수 없다.
-/// 기존판 collection.dart의 짝짓기 부분이다. 대화 맥락 만들기(F-009 `gather`)는 Phase 005에서 이 파일에 옮긴다.
+/// 기존판 collection.dart의 짝짓기 부분이다. 대화 맥락 만들기(F-009 `gather`)는 Phase 006에서 이 파일에 옮긴다.
 library;
 
 import 'ai_result.dart';

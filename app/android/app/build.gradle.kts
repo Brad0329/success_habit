@@ -34,7 +34,7 @@ android {
 
     buildTypes {
         release {
-            // 릴리스 서명 키는 Phase 007(배포 준비)에서 — 그때까지는 디버그 키.
+            // 릴리스 서명 키는 Phase 008(배포 준비)에서 — 그때까지는 디버그 키.
             signingConfig = signingConfigs.getByName("debug")
         }
     }
