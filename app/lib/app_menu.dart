@@ -35,7 +35,11 @@ class AppNav extends InheritedWidget {
     this.openChat,
     this.openMemorize,
     this.openSettings,
+    this.showPaste = true,
   });
+
+  /// false면 메뉴에 '붙여넣기'가 없다 — 붙여넣기 화면을 숨긴 조립(2026-11-19 사용자, `main.dart` 머리말)이 쓴다.
+  final bool showPaste;
 
   final void Function(BuildContext)? openPlan;
   final void Function(BuildContext)? openList;
@@ -49,7 +53,7 @@ class AppNav extends InheritedWidget {
   /// (메뉴에 항목이 늘어도 화면이 안 열리는 것은 조용한 무반응이라 눈에 안 띈다).
   void Function(BuildContext)? opener(AppMenuItem item) => switch (item) {
         AppMenuItem.plan => openPlan,
-        AppMenuItem.paste => (c) => Navigator.of(c).popUntil((r) => r.isFirst),
+        AppMenuItem.paste => showPaste ? (c) => Navigator.of(c).popUntil((r) => r.isFirst) : null,
         AppMenuItem.list => openList,
         AppMenuItem.chat => openChat,
         AppMenuItem.memorize => openMemorize,
@@ -62,7 +66,8 @@ class AppNav extends InheritedWidget {
       openList != old.openList ||
       openChat != old.openChat ||
       openMemorize != old.openMemorize ||
-      openSettings != old.openSettings;
+      openSettings != old.openSettings ||
+      showPaste != old.showPaste;
 }
 
 /// 앱바 끝에 붙이는 `⋯`. [current]는 지금 보고 있는 화면이고 그 항목은 잠긴다(어디 있는지 보인다).
