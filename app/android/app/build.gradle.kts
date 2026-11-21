@@ -6,14 +6,12 @@ plugins {
 }
 
 android {
-    // 기존판(com.brad0329.chaerok)과 한 폰에 함께 깔 수 있게 다른 이름(plan.md '확정')
+    // 이름에 chaerok이 남은 이유: 폰에 이미 깔린 '성공습관' 위에 덮어 설치해 계획이 남게(2026-11-21 사용자 결정). 바꾸면 새 앱으로 깔린다.
     namespace = "com.brad0329.chaerok.phone"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
-        // flutter_local_notifications가 요구한다(그 패키지 README 'Gradle setup')
-        isCoreLibraryDesugaringEnabled = true
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
     }
@@ -34,7 +32,7 @@ android {
 
     buildTypes {
         release {
-            // 릴리스 서명 키는 Phase 008(배포 준비)에서 — 그때까지는 디버그 키.
+            // 릴리스 서명 키는 배포 준비 Phase에서 — 그때까지는 디버그 키.
             signingConfig = signingConfigs.getByName("debug")
         }
     }
@@ -42,8 +40,4 @@ android {
 
 flutter {
     source = "../.."
-}
-
-dependencies {
-    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4") // 버전 = flutter_local_notifications 20.1.0 README
 }

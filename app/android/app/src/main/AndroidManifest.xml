@@ -1,8 +1,5 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-    <!-- F-002 공유 결과 알림 -->
-    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-    <!-- F-007 앱 안 녹음(record 패키지도 선언하지만 여기서 보이게 둔다) -->
-    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <!-- 권한 선언 없음 — 계획 전용 앱이라 알림·마이크·네트워크를 쓰지 않는다(debug/profile 매니페스트의 INTERNET은 Flutter 도구용). -->
     <application
         android:label="성공습관"
         android:allowBackup="false"
@@ -30,40 +27,6 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
         </activity>
-        <!-- 공유 메뉴의 '채록'(F-002) — 텍스트·URL·이미지·파일, 한 개·여러 개 -->
-        <!-- [숨김] 2026-11-19 사용자 결정: 목록·붙여넣기와 함께 공유 메뉴에서도 뺀다. 되살리려면 아래 주석 한 겹을 푼다(ShareActivity.kt·share_entry.dart는 그대로 있다).
-        <activity
-            android:name=".ShareActivity"
-            android:exported="true"
-            android:label="채록"
-            android:theme="@style/ShareTheme"
-            android:excludeFromRecents="true"
-            android:noHistory="true"
-            android:taskAffinity=""
-            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
-            android:hardwareAccelerated="true">
-            <intent-filter>
-                <action android:name="android.intent.action.SEND" />
-                <category android:name="android.intent.category.DEFAULT" />
-                <data android:mimeType="*/*" />
-            </intent-filter>
-            <intent-filter>
-                <action android:name="android.intent.action.SEND_MULTIPLE" />
-                <category android:name="android.intent.category.DEFAULT" />
-                <data android:mimeType="*/*" />
-            </intent-filter>
-        </activity>
-        [숨김 끝] -->
-        <!-- F-010 녹음 재생: 캐시 폴더 open/의 파일을 폰 기본 앱에 읽기 권한으로 넘긴다(내보내지 않음) -->
-        <provider
-            android:name="androidx.core.content.FileProvider"
-            android:authorities="${applicationId}.files"
-            android:exported="false"
-            android:grantUriPermissions="true">
-            <meta-data
-                android:name="android.support.FILE_PROVIDER_PATHS"
-                android:resource="@xml/open_paths" />
-        </provider>
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data

@@ -1,5 +1,5 @@
 name: chaerok
-description: "채록 폰 전용판 — 폰 하나로만 도는 개인 수집·정리 앱"
+description: "성공습관 — 폰 하나로만 도는 계획 달력 앱"
 publish_to: 'none'
 
 version: 1.0.0+1
@@ -7,27 +7,13 @@ version: 1.0.0+1
 environment:
   sdk: ^3.9.2
 
-# 버전의 출발점 = 기존판(privaterecord) pubspec.lock. Google Drive·OAuth가 없으므로
-# google_sign_in·google_sign_in_platform_interface·googleapis는 넣지 않는다(CLAUDE.md '전제').
+# 이름 `chaerok`은 갈라지기 전 그대로 둔다(import 경로). 플러그인 의존성이 없다 — 계획 전용이라
+# 알림·녹음·네트워크·웹뷰를 쓰지 않는다(수집·AI 쪽 의존성은 M채록 저장소로 갔다, 2026-11-21).
 dependencies:
   flutter:
     sdk: flutter
 
   cupertino_icons: ^1.0.8
-  crypto: ^3.0.8
-  workmanager: ^0.9.2
-  flutter_local_notifications: ^20.1.0
-  http: ^1.6.0
-  # 고정 이유: workmanager 0.9.2가 받는 android 0.9.3 + interface 0.9.4 조합에서 apple 0.9.4가 컴파일되지 않는다
-  # (interface 0.9.4에 새 인자 foregroundServiceConfig). 0.10은 Flutter 3.38 필요. Flutter를 올리면 이 두 줄을 지우고 0.10으로.
-  workmanager_platform_interface: 0.9.3
-  workmanager_android: 0.9.2
-  record: ^6.2.1
-  webview_flutter: ^4.13.1
-  # F-027: 구간 재생(playVideo)이 화면 터치 없이 돌게 미디어 터치 요구를 끈다.
-  webview_flutter_android: ^4.12.0
-  archive: ^4.6.0
-  image: ^4.13.1
 
 dev_dependencies:
   flutter_test:
