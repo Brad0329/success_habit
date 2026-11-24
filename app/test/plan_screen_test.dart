@@ -54,6 +54,10 @@ class _Store extends PlanStore {
   @override
   List<PlanItem>? itemsOn(DateTime day) => isRestDay(day) ? _restItems : items;
 
+  // F-037 통계의 '지금 항목' 묶음 — 평일 목록 고정.
+  @override
+  List<PlanItem> get current => items;
+
   @override
   Set<String> doneOn(DateTime day) => const {};
 
@@ -86,6 +90,17 @@ void main() {
 
   final field = find.byKey(const ValueKey('review-field'));
   Finder day(int n) => find.text('$n').first;
+
+  testWidgets('F-037 통계 아이콘을 누르면 통계 화면에 이번 달 항목 줄', (t) async {
+    await show(t);
+    await t.tap(find.byKey(const ValueKey('plan-stats')));
+    await t.pumpAndSettle();
+    expect(find.text('계획 통계'), findsOneWidget);
+    expect(find.text('2026-11-01 ~ 11-13 (13일)'), findsOneWidget);
+    // 11-01~13 평일 9일 — 운동은 평일 목록에도, 쉬는 날 목록에도 있어 13일 모두 해야 한 날.
+    expect(find.text('0 / 13일'), findsOneWidget);
+    expect(find.text('회사'), findsOneWidget);
+  });
 
   testWidgets('쓰고 1초 지나면 저장, 그 전엔 저장 안 함', (t) async {
     final s = await show(t);

@@ -216,6 +216,10 @@ class PlanStore extends ChangeNotifier {
     return _onList(day, _held).union(_defaultHeldOn(day).difference(released));
   }
 
+  /// F-037 쉬는 날 기본 보류로 남아 있는 평일 계획 id(그날 푼 것은 뺀다) — 통계는 이것을 해야 한 날·보류 어느 쪽에도 안 센다.
+  Set<String> restHeldOn(DateTime day) =>
+      _defaultHeldOn(day).difference(_released[dayKey(day)] ?? const <String>{});
+
   Set<String> _onList(DateTime day, Map<String, Set<String>> byDay) {
     final items = itemsOn(day);
     if (items == null) return const {};

@@ -11,6 +11,7 @@ import 'package:flutter/material.dart';
 
 import 'app_menu.dart';
 import 'log.dart';
+import 'plan_stats_screen.dart';
 import 'plans.dart';
 import 'weekday.dart';
 
@@ -23,6 +24,10 @@ class PlanScreen extends StatefulWidget {
   State<PlanScreen> createState() => _PlanScreenState();
 }
 
+
+/// DO 세이지·DON'T 산호빛 빨강 — 달력 칸과 통계 막대(F-037)가 같이 쓴다.
+const planDoColor = Color(0xFF5FA585);
+const planDontColor = Color(0xFFD2574E);
 
 /// 평가 칸에서 치다 멈춘 뒤 저장까지(F-024 '약 1초').
 const reviewSaveDelay = Duration(seconds: 1);
@@ -175,6 +180,13 @@ class _PlanScreenState extends State<PlanScreen> with WidgetsBindingObserver {
     return Scaffold(
       appBar: AppBar(title: const Text('계획'), actions: [
         IconButton(
+          key: const ValueKey('plan-stats'),
+          tooltip: '통계',
+          icon: const Icon(Icons.bar_chart),
+          onPressed: () => Navigator.of(context).push(MaterialPageRoute<void>(
+              builder: (_) => PlanStatsScreen(store: s, now: widget.now))),
+        ),
+        IconButton(
           tooltip: '이전 달',
           icon: const Icon(Icons.chevron_left),
           onPressed: () => setState(() {
@@ -309,7 +321,7 @@ class _PlanScreenState extends State<PlanScreen> with WidgetsBindingObserver {
 
   // 달성률 색(2026-11-13 사용자 '가' — 연속): 1개 = 시작색, 다 함 = 끝색, 그 사이는 한 개마다 고르게 섞는다.
   // 2026-11-17 디자인 B: 하늘색 → 세이지 초록(뜻은 그대로 — 많이 할수록 짙게).
-  static const _sage = Color(0xFF5FA585);
+  static const _sage = planDoColor;
   static const _startLight = Color(0xFFE2EEE6); // 아주 옅은 세이지
   static const _startDark = Color(0xFF1B2D24); // 어두운 숲색 — 다크 모드는 밝아지며 세이지로
 
@@ -330,7 +342,7 @@ class _PlanScreenState extends State<PlanScreen> with WidgetsBindingObserver {
 
   // F-026 DON'T 색(2026-11-15 사용자): 하나도 안 지켰으면 가장 짙은 빨강, 지킬수록 옅어져 다 지키면 색 없음(흰색).
   // 2026-11-17 디자인 B: 세이지와 어울리는 산호빛 빨강.
-  static const _red = Color(0xFFD2574E);
+  static const _red = planDontColor;
 
   /// [t] = 지킨 비율(0~1). 1이면 색 없음.
   (Color, Color) _dontToneAt(ThemeData theme, double t) {

@@ -1,0 +1,99 @@
+/// F-037 계획 통계 — 기간 안 날마다 그날 목록·체크·보류를 세어 항목별 (성공, 해야 한 날, 보류한 날)을 낸다.
+/// 계산만 한다(저장 없음). 항목은 id로 묶는다 — 이름을 바꿔도 한 줄, 지금 목록에 없는 항목은 '지운 항목'.
+/// 해야 한 날 = 목록에 있고 보류가 아닌 날. 보류 = 직접 보류한 날만 — 쉬는 날 기본 보류(F-031)는 어느 쪽에도 안 센다.
+library;
+
+import 'plans.dart';
+
+class PlanStat {
+  PlanStat(this.item);
+
+  /// 지금 항목이면 지금 이름, 지운 항목이면 기간 안에서 마지막으로 본 이름.
+  PlanItem item;
+  int done = 0;
+  int due = 0;
+  int held = 0;
+
+  /// 해야 한 날이 0이면 null(화면은 "—").
+  double? get rate => due == 0 ? null : done / due;
+}
+
+class PlanStats {
+  PlanStats(this.from, this.to, this.days, this.current, this.removed);
+
+  /// 센 기간 — [to]는 오늘까지로 자른 끝. [days] = 센 날 수(시작이 오늘보다 뒤면 0).
+  final DateTime from;
+  final DateTime to;
+  final int days;
+  final List<PlanStat> current;
+  final List<PlanStat> removed;
+
+  bool get isEmpty => current.isEmpty && removed.isEmpty;
+
+  /// 종류별 합계 (성공, 해야 한 날).
+  (int, int) total(PlanKind kind) {
+    var done = 0, due = 0;
+    for (final s in [...current, ...removed]) {
+      if (s.item.kind != kind) continue;
+      done += s.done;
+      due += s.due;
+    }
+    return (done, due);
+  }
+}
+
+DateTime _day(DateTime d) => DateTime(d.year, d.month, d.day);
+
+/// [from]~[to](둘 다 포함)를 [today]까지로 잘라 센다. 계획 없는 날은 건너뛴다.
+PlanStats planStats(PlanStore store, DateTime from, DateTime to, DateTime today) {
+  final start = _day(from);
+  final end = _day(to).isAfter(_day(today)) ? _day(today) : _day(to);
+  final byId = <String, PlanStat>{};
+  var days = 0;
+  for (var d = start; !d.isAfter(end); d = DateTime(d.year, d.month, d.day + 1)) {
+    days++;
+    final items = store.itemsOn(d);
+    if (items == null) continue;
+    final rest = store.restHeldOn(d);
+    final held = store.heldOn(d);
+    final done = store.doneOn(d);
+    for (final i in items) {
+      if (rest.contains(i.id)) continue;
+      final s = byId.putIfAbsent(i.id, () => PlanStat(i))..item = i;
+      if (held.contains(i.id)) {
+        s.held++;
+      } else {
+        s.due++;
+        if (done.contains(i.id)) s.done++;
+      }
+    }
+  }
+  final current = <PlanStat>[];
+  for (final i in store.current) {
+    final s = byId.remove(i.id);
+    if (s != null) current.add(s..item = i);
+  }
+  return PlanStats(start, end, days, current, byId.values.toList());
+}
+
+/// F-037 기간 빠른 선택.
+enum PlanPeriod {
+  week('이번 주'),
+  month('이번 달'),
+  lastMonth('지난 달'),
+  days30('최근 30일');
+
+  const PlanPeriod(this.label);
+  final String label;
+}
+
+/// 빠른 선택의 (시작, 끝). 이번 주는 일요일 시작(달력과 같음). 끝이 오늘 뒤일 수 있는 건 없다.
+(DateTime, DateTime) periodRange(PlanPeriod p, DateTime today) {
+  final t = _day(today);
+  return switch (p) {
+    PlanPeriod.week => (DateTime(t.year, t.month, t.day - t.weekday % 7), t),
+    PlanPeriod.month => (DateTime(t.year, t.month), t),
+    PlanPeriod.lastMonth => (DateTime(t.year, t.month - 1), DateTime(t.year, t.month, 0)),
+    PlanPeriod.days30 => (DateTime(t.year, t.month, t.day - 29), t),
+  };
+}
