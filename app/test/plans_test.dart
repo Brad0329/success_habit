@@ -450,7 +450,16 @@ void main() {
       expect(file.readAsStringSync(), before);
     });
 
-    testWidgets('주말 편집: 새 항목은 맨 위로 저장 호출 / 보류된 평일 계획 풀기 → 맨 아래로 편입', (t) async {
+    test('주말 계획에 새로 넣은 것은 그날 묶음 맨 위, 보류된 평일 계획은 그 아래', () async {
+      final s = await withHike();
+      final hike = s.weekendItems.single.id;
+      await s.saveWeekend([(null, '산책', PlanKind.doIt), (hike, '등산', PlanKind.doIt)], n(17));
+      final r = open();
+      expect(titles(r.itemsOn(n(21))), ['산책', '등산', '운동', '독서']);
+      expect(heldTitles(r, n(21)), ['운동', '독서']);
+    });
+
+    testWidgets('주말 편집: 새 항목은 맨 위로 저장 호출 / 보류된 평일 계획은 보이지 않는다', (t) async {
       await t.runAsync(() async {
         final w = PlanStore(tmp);
         await w.saveList([(null, '운동')], n(16));
@@ -458,15 +467,14 @@ void main() {
       });
       final store = _Capture(tmp);
       await t.pumpWidget(MaterialApp(home: PlanEditScreen(store: store, weekend: true, now: () => n(17))));
-      final hike = store.weekendItems.single.id, run = store.weekdayItems.single.id;
-      expect(find.text('평일 계획 · 보류'), findsOneWidget);
+      final hike = store.weekendItems.single.id;
+      expect(find.text('등산'), findsOneWidget);
+      expect(find.text('운동'), findsNothing, reason: '보류된 평일 계획은 설정에 안 보인다');
+      expect(find.text('풀기'), findsNothing);
       await t.enterText(find.byKey(const ValueKey('plan-add-do')), '산책');
       await t.tap(find.byKey(const ValueKey('plan-add-button-do')));
       await t.pump();
       expect(store.savedWeekend.last, [(null, '산책', PlanKind.doIt), (hike, '등산', PlanKind.doIt)]);
-      await t.tap(find.byKey(ValueKey('plan-release-$run')));
-      await t.pump();
-      expect(store.savedWeekend.last, [(hike, '등산', PlanKind.doIt), (run, '운동', PlanKind.doIt)]);
       expect(store.saved, isEmpty, reason: '주말 편집은 평일 계획 저장을 부르지 않는다');
     });
   });

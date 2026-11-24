@@ -1,6 +1,7 @@
 /// F-016 설정 → 매일 계획 편집(목업 ③, 2026-11-08 "이대로"). 추가·이름 바꾸기·지우기·끌어서 순서 — 바꿀 때마다 바로 저장.
 /// 바꾼 목록은 오늘부터 적용된다(지난 날은 그대로 — plans.dart). F-026 DO·DON'T 두 묶음, 순서는 묶음 안에서.
-/// F-031 평일 계획 · 주말·휴일 계획 두 편집 화면. 주말 편집은 새 항목을 맨 위에 넣고, 묶음 아래에 보류된 평일 계획('풀기' = 편입).
+/// F-031 평일 계획 · 주말·휴일 계획 두 편집 화면. 주말 편집은 새 항목을 맨 위에 넣는다.
+/// 보류된 평일 계획은 여기 보이지 않고 계획 화면 아래에 나오며, 길게 눌러 그날만 푼다(2026-11-22 사용자).
 library;
 
 import 'package:flutter/material.dart';
@@ -20,10 +21,10 @@ class PlanSettingsTile extends StatefulWidget {
 }
 
 class _PlanSettingsTileState extends State<PlanSettingsTile> {
-  static String _summary(List<PlanItem> items, {int held = 0}) {
-    if (items.isEmpty && held == 0) return '아직 없음';
+  static String _summary(List<PlanItem> items) {
+    if (items.isEmpty) return '아직 없음';
     final kinds = "DO ${items.where((i) => i.kind == PlanKind.doIt).length} · DON'T ${items.where((i) => i.kind == PlanKind.dont).length}";
-    return [kinds, if (held > 0) '보류 $held', if (items.isNotEmpty) items.map((i) => i.title).join(', ')].join(' · ');
+    return [kinds, items.map((i) => i.title).join(', ')].join(' · ');
   }
 
   Widget _tile(String title, IconData icon, String subtitle, bool weekend) => ListTile(
@@ -44,7 +45,7 @@ class _PlanSettingsTileState extends State<PlanSettingsTile> {
     final s = widget.store;
     return Column(mainAxisSize: MainAxisSize.min, children: [
       _tile('평일 계획', Icons.event_available, _summary(s.weekdayItems), false),
-      _tile('주말·휴일 계획', Icons.weekend_outlined, _summary(s.weekendItems, held: s.weekendHeldItems.length), true),
+      _tile('주말·휴일 계획', Icons.weekend_outlined, _summary(s.weekendItems), true),
     ]);
   }
 }
@@ -126,17 +127,11 @@ class _PlanEditScreenState extends State<PlanEditScreen> {
     setState(() {});
   }
 
-  /// F-031 보류된 평일 계획을 주말 계획 맨 아래로 편입.
-  Future<void> _release(PlanItem it) =>
-      _save(_join(it.kind, [..._rowsOf(it.kind), (it.id, it.title, it.kind)]));
-
-  /// 한 묶음 — 제목 · 끌어서 순서 · 추가 칸(F-031 주말은 보류된 평일 계획 줄도).
+  /// 한 묶음 — 제목 · 끌어서 순서 · 추가 칸.
   List<Widget> _section(ThemeData theme, PlanKind kind) {
     final rows = _rowsOf(kind);
     final dont = kind == PlanKind.dont;
     final weekdayIds = {for (final i in s.weekdayItems) i.id};
-    final held = _weekend ? [for (final i in s.weekendHeldItems) if (i.kind == kind) i] : const <PlanItem>[];
-    final dim = theme.colorScheme.outline;
     return [
       Text(dont ? "DON'T" : 'DO', style: theme.textTheme.titleSmall),
       Text(dont ? '안 하기 — 지킨 날 체크' : '하기 — 한 날 체크', style: theme.textTheme.bodySmall),
@@ -176,16 +171,6 @@ class _PlanEditScreenState extends State<PlanEditScreen> {
             ),
         ],
       ),
-      for (final it in held)
-        ListTile(
-          key: ValueKey('plan-held-${it.id}'),
-          contentPadding: EdgeInsets.zero,
-          leading: Icon(Icons.pause_circle_outline, color: dim),
-          title: Text(it.title, style: TextStyle(color: dim)),
-          subtitle: Text('평일 계획 · 보류', style: theme.textTheme.labelSmall?.copyWith(color: dim)),
-          trailing: TextButton(
-              key: ValueKey('plan-release-${it.id}'), onPressed: () => _release(it), child: const Text('풀기')),
-        ),
       const SizedBox(height: 8),
       Row(children: [
         Expanded(
@@ -218,7 +203,7 @@ class _PlanEditScreenState extends State<PlanEditScreen> {
           Text('계획 파일을 읽지 못했습니다 — 저장을 막아 두었습니다',
               style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.error)),
         if (_weekend) ...[
-          Text('토·일과 계획 화면에서 휴일로 지정한 날에 씁니다. 평일 계획은 보류로 보이고, \'풀기\'로 주말 계획에 넣을 수 있습니다.',
+          Text('토·일과 계획 화면에서 휴일로 지정한 날에 씁니다. 여기 넣은 계획은 그날 맨 위에 보이고, 평일 계획은 그 아래에 보류로 보입니다(길게 누르면 그날만 활성화).',
               style: small),
           const SizedBox(height: 12),
         ],

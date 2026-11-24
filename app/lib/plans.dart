@@ -156,9 +156,6 @@ class PlanStore {
   /// F-031 지금 주말 계획(주말 순서) — 주말에만 넣은 항목 + 편입한 평일 계획.
   List<PlanItem> get weekendItems => _versions.isEmpty ? const [] : _weekendOf(_versions.last);
 
-  /// F-031 지금 주말에 보류로 보이는 평일 계획(평일 순서).
-  List<PlanItem> get weekendHeldItems => _versions.isEmpty ? const [] : _defaultHeldOf(_versions.last);
-
   List<PlanItem> _weekendOf(_Version v) {
     final byId = {for (final i in v.items) i.id: i};
     return [for (final id in v.weekend ?? const <String>[]) if (byId[id] != null) byId[id]!];
