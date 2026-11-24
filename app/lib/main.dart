@@ -36,6 +36,12 @@ Future<void> main() async {
     // 앱은 계속 띄운다 — 평일 DON'T가 주말에 보류로 보이고, 다음 시작 때 다시 시도한다.
     logError("평일 DON'T 주말 편입 실패", e, st);
   }
+  try {
+    await plans.adoptDontDefault(DateTime.now()); // F-026 바뀜: 옛 파일이면 오늘부터 DON'T 기본 지킴
+  } on Object catch (e, st) {
+    // 앱은 계속 띄운다 — 옛 규칙(체크한 DON'T만 지킴)으로 보이고, 다음 실행에서 다시 시도한다.
+    logError("DON'T 기본 지킴 시작 실패", e, st);
+  }
   runApp(ChaerokApp(plans: plans));
 }
 

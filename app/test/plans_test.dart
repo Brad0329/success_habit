@@ -569,4 +569,58 @@ void main() {
       expect('하루 평가 파일을 읽지 못함'.allMatches(log).length, 1);
     });
   });
+
+  group("F-026 바뀜 DON'T 기본 지킴(2026-11-24)", () {
+    // 10-05~09 = 평일. 새 규칙 시작 = 10-07.
+    PlanStore at(int day) => PlanStore(tmp, now: () => DateTime(2026, 10, day, 21));
+    Future<PlanStore> seed() async {
+      final s = at(5);
+      await s.saveItems([(null, '운동', PlanKind.doIt), (null, '야식', PlanKind.dont)], d(5));
+      return s;
+    }
+
+    test("새 규칙 날: 안 눌러도 지킴, 누르면 어김(다시 읽어도), 다시 누르면 지킴", () async {
+      final s0 = await seed();
+      await s0.adoptDontDefault(d(7));
+      final s = at(7);
+      expect(s.summary(d(7), kind: PlanKind.dont), (1, 1));
+      expect(await s.toggle(d(7), idOf(s, d(7), '야식'), d(7)), isTrue);
+      expect(s.summary(d(7), kind: PlanKind.dont), (0, 1));
+      expect(at(7).summary(d(7), kind: PlanKind.dont), (0, 1));
+      await s.toggle(d(7), idOf(s, d(7), '야식'), d(7));
+      expect(at(7).summary(d(7), kind: PlanKind.dont), (1, 1));
+    });
+
+    test('지난 날은 옛 규칙 그대로, 시작 처리를 다시 해도 쓰기 0', () async {
+      final s0 = await seed();
+      await s0.toggle(d(5), idOf(s0, d(5), '야식'), d(6)); // 10-05 체크(지킴), 10-06 안 함
+      await s0.adoptDontDefault(d(7));
+      final before = file.readAsStringSync();
+      expect(before, contains('"dont_default_from":"2026-10-07"'));
+      final s = at(8);
+      await s.adoptDontDefault(d(8));
+      expect(file.readAsStringSync(), before);
+      expect([for (final k in [5, 6, 7, 8]) s.summary(d(k), kind: PlanKind.dont)], [(1, 1), (0, 1), (1, 1), (1, 1)]);
+    });
+
+    test('미래 날짜는 기본 지킴 없음 / DO는 기본 지킴 아님', () async {
+      final s0 = await seed();
+      await s0.adoptDontDefault(d(7));
+      final s = at(7);
+      expect(s.doneOn(d(8)), isEmpty);
+      expect(s.summary(d(7), kind: PlanKind.doIt), (0, 1));
+    });
+
+    test('어긴 DON\'T 보류 → (0, 0), 보류 해제 → 다시 지킴 (1, 1)', () async {
+      final s0 = await seed();
+      await s0.adoptDontDefault(d(7));
+      final s = at(7);
+      final id = idOf(s, d(7), '야식');
+      await s.toggle(d(7), id, d(7));
+      expect(await s.toggleHold(d(7), id, d(7)), isTrue);
+      expect(at(7).summary(d(7), kind: PlanKind.dont), (0, 0));
+      await s.toggleHold(d(7), id, d(7));
+      expect(at(7).summary(d(7), kind: PlanKind.dont), (1, 1));
+    });
+  });
 }

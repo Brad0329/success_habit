@@ -5,6 +5,7 @@
 /// 항목은 id로 구분한다 — 이름을 바꿔도 같은 항목이라 체크가 유지된다.
 /// F-025 보류(`held`, 날짜 → id) = 그날 할 수 없는 항목 — 집계의 전체 수에서 빠지고 체크할 수 없다.
 /// F-026 항목마다 종류(`kind`: do·dont). 키가 없는 옛 항목은 DO.
+/// F-026 바뀜(2026-11-24): `dont_default_from` 이후 DON'T는 기본 지킴 — 누르면 `missed`(어김). 그 전 날은 옛 규칙(체크 = 지킴).
 /// F-031 평일·주말(휴일) 나누기 — 이력 칸의 `weekend`(주말에 하는 id, 주말 순서)가 있으면 나눈 칸.
 /// 쉬는 날(토·일·`holidays`) 목록 = 주말 계획 + 그 밖의 평일 계획(기본 보류 — `released`로 그날만 풀 수 있다),
 /// 평일 목록 = `weekday`가 true인 항목. `weekend`가 없는 옛 칸은 모든 날 같은 목록(지난 날 그대로).
@@ -94,12 +95,19 @@ String? validatePlanTitles(List<String> titles) {
 
 /// 목록을 저장하면 알린다 — 맨 밑에 떠 있는 계획 화면이 설정에서 바꾼 목록을 다시 그리게(2026-11-24).
 class PlanStore extends ChangeNotifier {
-  PlanStore(this.dir) {
+  PlanStore(this.dir, {this.now = DateTime.now}) {
     _load();
   }
 
   /// `files/plans/`.
   final Directory dir;
+
+  /// 오늘을 아는 시계 — F-026 바뀜: DON'T 기본 지킴은 오늘까지만(미래는 표시 없음).
+  final DateTime Function() now;
+
+  /// F-026 바뀜(2026-11-24) DON'T 기본 지킴 시작 날짜 — 이날부터 DON'T는 `_missed`에 없으면 지킴. null = 아직 옛 규칙.
+  String? _dontFrom;
+  final _missed = <String, Set<String>>{}; // 날짜 → 어긴 DON'T id(새 규칙 날만)
 
   File get _file => File('${dir.path}/plans.json');
 
@@ -141,6 +149,10 @@ class PlanStore extends ChangeNotifier {
       ((j['released'] as Map?) ?? const {})
           .forEach((k, v) => _released[k as String] = {for (final id in v as List) id as String});
       _holidays.addAll([for (final k in (j['holidays'] as List?) ?? const []) k as String]);
+      // F-026 바뀜: 키가 없는 옛 파일 = 모든 날 옛 규칙(체크한 DON'T만 지킴).
+      _dontFrom = j['dont_default_from'] as String?;
+      ((j['missed'] as Map?) ?? const {})
+          .forEach((k, v) => _missed[k as String] = {for (final id in v as List) id as String});
       _nextId = j['next_id'] as int;
       _dontRestFrom = j['dont_rest_from'] as String?;
     } on Object catch (e) {
@@ -150,6 +162,8 @@ class PlanStore extends ChangeNotifier {
       _held.clear();
       _released.clear();
       _holidays.clear();
+      _dontFrom = null;
+      _missed.clear();
       broken = true;
     }
   }
@@ -208,7 +222,52 @@ class PlanStore extends ChangeNotifier {
   }
 
   /// 그날 체크한 항목 id(그날 목록에 있고 보류가 아닌 것만).
-  Set<String> doneOn(DateTime day) => _onList(day, _done).difference(heldOn(day));
+  /// F-026 바뀜: 기본 지킴 날(시작 이후·오늘까지)의 DON'T는 어기지 않았으면 체크된 것으로 친다.
+  Set<String> doneOn(DateTime day) {
+    final done = {..._onList(day, _done)};
+    if (_dontDefaultOn(day)) {
+      final missed = _missed[dayKey(day)] ?? const <String>{};
+      for (final i in itemsOn(day)!) {
+        if (i.kind != PlanKind.dont) continue;
+        if (missed.contains(i.id)) {
+          done.remove(i.id);
+        } else {
+          done.add(i.id);
+        }
+      }
+    }
+    return done.difference(heldOn(day));
+  }
+
+  /// F-026 바뀜: 그날이 DON'T 기본 지킴 날인가 — 시작 날짜 이후이고 오늘 이전, 계획 있는 날.
+  bool _dontDefaultOn(DateTime day) {
+    final from = _dontFrom;
+    if (from == null || itemsOn(day) == null) return false;
+    final k = dayKey(day);
+    return k.compareTo(from) >= 0 && k.compareTo(dayKey(now())) <= 0;
+  }
+
+  /// F-026 바뀜 기본 지킴으로 세는 DON'T인가(새 규칙 날의 DON'T — 미래 포함, 체크는 미래에 막혀 있다).
+  bool _isDefaultDont(DateTime day, String id) {
+    final from = _dontFrom;
+    if (from == null || dayKey(day).compareTo(from) < 0) return false;
+    return itemsOn(day)?.any((i) => i.id == id && i.kind == PlanKind.dont) ?? false;
+  }
+
+  /// F-026 바뀜: 옛 파일이면 오늘부터 DON'T 기본 지킴을 켠다(지난 날은 옛 규칙 그대로). 앱을 켤 때 한 번.
+  /// 이미 켰거나 깨진 파일이면 쓰기 0. 목록이 아직 없으면 메모리에만 두고 첫 저장이 함께 쓴다. 쓰기 실패는 되돌리고 다시 던진다.
+  Future<void> adoptDontDefault(DateTime today) async {
+    if (broken || _dontFrom != null) return;
+    _dontFrom = dayKey(today);
+    if (_versions.isEmpty) return;
+    try {
+      await _write();
+    } on Object {
+      _dontFrom = null;
+      rethrow;
+    }
+    logInfo("DON'T 기본 지킴 시작: $_dontFrom");
+  }
 
   /// F-025 그날 보류한 항목 id(그날 목록에 있는 것만). F-031 기본 보류 중 그날 푼 것은 뺀다.
   Set<String> heldOn(DateTime day) {
@@ -409,6 +468,9 @@ class PlanStore extends ChangeNotifier {
     final removed = held.remove(id);
     final on = byDefault ? removed : !removed;
     final wasDone = on && done.remove(id);
+    // F-026 바뀜: 어긴 DON'T를 보류하면 어김도 풀린다 — 보류를 풀면 다시 기본 지킴.
+    final missed = _missed[k];
+    final wasMissed = on && (missed?.remove(id) ?? false);
     if (!removed) held.add(id);
     try {
       await _write();
@@ -420,6 +482,7 @@ class PlanStore extends ChangeNotifier {
         held.remove(id);
       }
       if (wasDone) done.add(id);
+      if (wasMissed) missed!.add(id);
       rethrow;
     }
     return true;
@@ -430,7 +493,8 @@ class PlanStore extends ChangeNotifier {
     if (!_canMark(day, id, today)) return false;
     final k = dayKey(day);
     if (heldOn(day).contains(id)) return false;
-    final set = _done.putIfAbsent(k, () => <String>{});
+    // F-026 바뀜: 기본 지킴 DON'T는 누르면 '어김'(missed)을 켜고 끈다.
+    final set = (_isDefaultDont(day, id) ? _missed : _done).putIfAbsent(k, () => <String>{});
     final on = !set.remove(id);
     if (on) set.add(id);
     try {
@@ -526,6 +590,11 @@ class PlanStore extends ChangeNotifier {
         },
         'holidays': _holidays.toList()..sort(),
         if (_dontRestFrom != null) 'dont_rest_from': _dontRestFrom,
+        if (_dontFrom != null) 'dont_default_from': _dontFrom,
+        'missed': {
+          for (final e in _missed.entries)
+            if (e.value.isNotEmpty) e.key: e.value.toList()..sort(),
+        },
       });
 
   /// 임시 파일에 쓰고 바꿔치기 — 계획·평가 파일이 같이 쓴다(쓰기 지점 하나, file_writers_test).

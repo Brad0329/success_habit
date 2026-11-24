@@ -80,6 +80,14 @@ void main() {
     expect((st.total(PlanKind.doIt), st.total(PlanKind.dont)), ((0, 1), (1, 1)));
   });
 
+  test("DON'T 기본 지킴 날: 3일 중 1일 어김 → (2, 3)", () async {
+    final s = PlanStore(tmp, now: () => DateTime(2026, 10, 7, 21));
+    await s.saveItems([(null, '야식', PlanKind.dont)], d(5));
+    await s.adoptDontDefault(d(5));
+    await s.toggle(d(6), s.current.single.id, d(7));
+    expect(row(planStats(s, d(5), d(7), d(7)).current.single), ('야식', 2, 3, 0));
+  });
+
   test('기간 빠른 선택', () {
     final today = DateTime(2026, 11, 24); // 화요일
     expect(periodRange(PlanPeriod.week, today), (DateTime(2026, 11, 22), today));
