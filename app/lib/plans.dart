@@ -110,6 +110,9 @@ class PlanStore extends ChangeNotifier {
   final _holidays = <String>{}; // F-031 휴일로 지정한 평일
   var _nextId = 1;
 
+  /// 평일 DON'T를 주말 계획에 자동으로 넣기 시작한 날(SCHEMA 2026-11-24). null = 아직(옛 파일).
+  String? _dontRestFrom;
+
   /// 파일이 깨졌으면 true — 저장·체크를 모두 거부한다(덮어써서 기록을 잃지 않게).
   bool broken = false;
 
@@ -139,6 +142,7 @@ class PlanStore extends ChangeNotifier {
           .forEach((k, v) => _released[k as String] = {for (final id in v as List) id as String});
       _holidays.addAll([for (final k in (j['holidays'] as List?) ?? const []) k as String]);
       _nextId = j['next_id'] as int;
+      _dontRestFrom = j['dont_rest_from'] as String?;
     } on Object catch (e) {
       logError('계획 파일을 읽지 못함 — 저장·체크를 막는다(파일은 그대로 둠)', e);
       _versions.clear();
@@ -244,7 +248,9 @@ class PlanStore extends ChangeNotifier {
     ];
     final index = {for (var k = 0; k < all.length; k++) if (all[k].$1 != null) all[k].$1!: k};
     final old = _versions.isEmpty ? const <String>[] : (_versions.last.weekend ?? const <String>[]);
-    return _save(all, [for (final id in old) if (index[id] != null) index[id]!], today);
+    // 새로 넣은 평일 DON'T는 주말 계획에도(맨 뒤) — 주말·휴일에 보류되지 않는다(2026-11-24 사용자).
+    final newDonts = [for (var k = 0; k < rows.length; k++) if (rows[k].$1 == null && rows[k].$3 == PlanKind.dont) k];
+    return _save(all, [for (final id in old) if (index[id] != null) index[id]!, ...newDonts], today);
   }
 
   /// F-031 오늘부터 적용할 **주말 계획**을 저장한다. [rows] = 주말 순서대로 — 평일 계획의 id면 편입, 아니면 주말에만.
@@ -283,6 +289,8 @@ class PlanStore extends ChangeNotifier {
     if (last?.weekend != null && _listEquals(items, last!.items) && _idsEqual(weekend, last.weekend!)) return null;
     final k = dayKey(today);
     final prevNext = _nextId;
+    final prevDontRest = _dontRestFrom;
+    _dontRestFrom ??= k; // 새 코드가 쓴 파일 = 평일 DON'T가 주말에 들어가는 규칙을 따른다(SCHEMA 2026-11-24)
     final added = last == null || last.from != k;
     final oldItems = last?.items;
     final oldWeekend = last?.weekend;
@@ -304,6 +312,7 @@ class PlanStore extends ChangeNotifier {
         last.weekend = oldWeekend;
       }
       _nextId = prevNext;
+      _dontRestFrom = prevDontRest;
       rethrow;
     }
     logInfo('계획 저장: 평일 ${items.where((i) => i.weekday).length}개 · 주말 ${weekend.length}개(적용 $k)');
@@ -334,6 +343,26 @@ class PlanStore extends ChangeNotifier {
       rethrow;
     }
     logInfo('계획을 평일·주말로 나눔: 평일 ${last.items.length}개(적용 $k)');
+  }
+
+  /// 평일 DON'T를 주말·휴일에도 보류 없이 — 주말 계획에 없는 평일 DON'T를 주말 순서 맨 뒤(DON'T 묶음 맨 아래)에 넣은
+  /// 칸을 오늘부터 쓴다(2026-11-24 사용자, SCHEMA `dont_rest_from`). 앱을 켤 때 [splitFromToday] 다음에 한 번.
+  /// 이미 넣었거나(표시 있음) 나눈 칸이 아니거나 넣을 것이 없거나 깨진 파일이면 쓰기 0. 쓰기 실패는 다시 던진다.
+  Future<void> includeWeekdayDontsOnRest(DateTime today) async {
+    if (broken || _dontRestFrom != null || _versions.isEmpty || _versions.last.weekend == null) return;
+    final v = _versions.last;
+    final on = v.weekend!.toSet();
+    final missing = [for (final i in v.items) if (i.weekday && i.kind == PlanKind.dont && !on.contains(i.id)) i.id];
+    if (missing.isEmpty) return; // 표시는 다음 저장(_save)이 쓴다 — 그 뒤 새 DON'T는 저장 때 들어간다
+    final rows = [for (final i in v.items) (i.id, i.title, i.kind, i.weekday)];
+    final index = {for (var k = 0; k < rows.length; k++) rows[k].$1: k};
+    final order = [for (final id in [...v.weekend!, ...missing]) if (index[id] != null) index[id]!];
+    final error = await _save(rows, order, today);
+    if (error != null) {
+      logError("평일 DON'T 주말 편입 못 함", error);
+      return;
+    }
+    logInfo("평일 DON'T ${missing.length}개를 주말 계획에 넣음(적용 ${dayKey(today)})");
   }
 
   /// F-031 그날을 휴일로 지정·해제한다. [canSetHoliday]가 아니면 false(쓰기 0). 지정하면 true를 돌려준 뒤 그날은 쉬는 날.
@@ -492,6 +521,7 @@ class PlanStore extends ChangeNotifier {
             if (e.value.isNotEmpty) e.key: e.value.toList()..sort(),
         },
         'holidays': _holidays.toList()..sort(),
+        if (_dontRestFrom != null) 'dont_rest_from': _dontRestFrom,
       });
 
   /// 임시 파일에 쓰고 바꿔치기 — 계획·평가 파일이 같이 쓴다(쓰기 지점 하나, file_writers_test).

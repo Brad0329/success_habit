@@ -459,6 +459,48 @@ void main() {
       expect(heldTitles(r, n(21)), ['운동', '독서']);
     });
 
+    // 2026-11-24 사용자: 평일 DON'T는 주말·휴일에도 보류 없이 — 오늘부터 주말 계획에 자동 편입(SCHEMA `dont_rest_from`).
+    const beforeDontFile = '{"version":1,"next_id":4,"lists":[{"from":"2026-11-09","items":'
+        '[{"id":"p1","title":"운동","kind":"do"},{"id":"p2","title":"야식","kind":"dont"},'
+        '{"id":"p3","title":"등산","kind":"do","weekday":false}],"weekend":["p3"]}],"done":{}}';
+
+    test("평일 DON'T 자동 편입: 표시 없는 파일 → 오늘부터 주말에 야식 활성, 운동은 보류 / 지난 토요일 그대로 / 다시 해도 쓰기 0", () async {
+      file.writeAsStringSync(beforeDontFile);
+      final s = open();
+      await s.includeWeekdayDontsOnRest(n(17));
+      final r = open();
+      expect(titles(r.itemsOn(n(21))), ['등산', '야식', '운동']);
+      expect(heldTitles(r, n(21)), ['운동']);
+      expect(r.summary(n(21), kind: PlanKind.dont), (0, 1));
+      expect(heldTitles(r, n(14)), ['운동', '야식'], reason: '지난 토요일은 그대로');
+      expect(file.readAsStringSync(), contains('"dont_rest_from":"2026-11-17"'));
+      file.deleteSync();
+      await s.includeWeekdayDontsOnRest(n(17));
+      expect(file.existsSync(), isFalse, reason: '이미 넣었으면 쓰기 0');
+    });
+
+    test("평일 DON'T 자동 편입: 보류로 되돌린 DON'T는 다시 켜도 다시 안 들어온다 / 깨진 파일은 쓰기 0", () async {
+      file.writeAsStringSync(beforeDontFile);
+      await open().includeWeekdayDontsOnRest(n(17));
+      final s = open();
+      await s.saveWeekend([for (final i in s.weekendItems) if (i.title != '야식') (i.id, i.title, i.kind)], n(17));
+      final r = open();
+      await r.includeWeekdayDontsOnRest(n(18));
+      expect(heldTitles(open(), n(21)), ['운동', '야식']);
+      file.writeAsStringSync('{깨짐');
+      await open().includeWeekdayDontsOnRest(n(17));
+      expect(file.readAsStringSync(), '{깨짐');
+    });
+
+    test("평일 편집에서 새로 넣은 DON'T는 주말에도 들어간다, 새 DO는 주말에 보류", () async {
+      final s = await withHike();
+      final rows = [for (final i in s.weekdayItems) (i.id, i.title, i.kind)];
+      await s.saveItems([...rows, (null, '청소', PlanKind.doIt), (null, '야식', PlanKind.dont)], n(17));
+      final r = open();
+      expect(titles(r.weekendItems), ['등산', '야식']);
+      expect(heldTitles(r, n(21)), ['운동', '독서', '청소']);
+    });
+
     testWidgets('주말 편집: 새 항목은 맨 위로 저장 호출 / 보류된 평일 계획은 보이지 않는다', (t) async {
       await t.runAsync(() async {
         final w = PlanStore(tmp);

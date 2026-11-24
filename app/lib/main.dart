@@ -30,6 +30,12 @@ Future<void> main() async {
     // 앱은 계속 띄운다 — 나누기 전 목록으로 보이고, 다음 저장이 나눈 칸을 쓴다.
     logError('계획 평일·주말 나누기 실패', e, st);
   }
+  try {
+    await plans.includeWeekdayDontsOnRest(DateTime.now()); // 평일 DON'T를 주말에도(한 번)
+  } on Object catch (e, st) {
+    // 앱은 계속 띄운다 — 평일 DON'T가 주말에 보류로 보이고, 다음 시작 때 다시 시도한다.
+    logError("평일 DON'T 주말 편입 실패", e, st);
+  }
   runApp(ChaerokApp(plans: plans));
 }
 
