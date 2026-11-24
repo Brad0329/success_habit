@@ -207,4 +207,23 @@ void main() {
     await t.pump();
     expect(bubble, findsNothing);
   });
+
+  // 2026-11-24 사용자: 설정에서 평일·주말 계획을 넣었는데 달력에 안 나왔다 — 맨 밑 계획 화면이 돌아와도 다시 그리지 않았다.
+  testWidgets('설정(위 화면)에서 계획을 바꾸고 돌아오면 계획 화면에 바로 보인다', (t) async {
+    t.view.physicalSize = const Size(800, 2400);
+    t.view.devicePixelRatio = 1;
+    addTearDown(t.view.reset);
+    final s = PlanStore(tmp); // 진짜 저장소 — 저장이 알리는 것까지 건다
+    final nav = GlobalKey<NavigatorState>();
+    await t.pumpWidget(MaterialApp(
+        navigatorKey: nav, home: PlanScreen(store: s, now: () => DateTime(2026, 11, 13, 21, 4))));
+    expect(find.text('운동'), findsNothing);
+    nav.currentState!.push(MaterialPageRoute<void>(builder: (_) => const Scaffold(body: Text('설정'))));
+    await t.pumpAndSettle();
+    // 파일 쓰기는 진짜 비동기라 가짜 시계 밖에서 기다린다.
+    await t.runAsync(() => s.saveItems([(null, '운동', PlanKind.doIt)], d(13)));
+    nav.currentState!.pop();
+    await t.pumpAndSettle();
+    expect(find.text('운동'), findsOneWidget);
+  });
 }

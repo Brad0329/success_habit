@@ -55,6 +55,12 @@ class _PlanScreenState extends State<PlanScreen> with WidgetsBindingObserver {
     _sel = _today;
     _loadReview(_sel);
     WidgetsBinding.instance.addObserver(this);
+    s.addListener(_onPlansChanged);
+  }
+
+  /// 설정(위에 쌓인 화면)에서 목록을 바꾸면 다시 그린다 — 이 화면은 맨 밑에 계속 떠 있다.
+  void _onPlansChanged() {
+    if (mounted) setState(() {});
   }
 
   /// 앱이 화면에서 내려갈 때(뒤로·홈·최근 앱에서 밀어 끄기 모두 paused를 거친다) 안 저장한 평가를 저장한다.
@@ -67,6 +73,7 @@ class _PlanScreenState extends State<PlanScreen> with WidgetsBindingObserver {
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    s.removeListener(_onPlansChanged);
     // 화면을 나갈 때 아직 안 저장한 글을 저장한다(화면은 사라지므로 결과는 로그로만 — _saveReview가 남긴다).
     _flushReview(mounted: false);
     _review.dispose();

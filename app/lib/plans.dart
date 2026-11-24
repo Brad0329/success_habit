@@ -15,6 +15,8 @@ library;
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart' show ChangeNotifier;
+
 import 'atomic_file.dart';
 import 'log.dart';
 
@@ -90,7 +92,8 @@ String? validatePlanTitles(List<String> titles) {
   return null;
 }
 
-class PlanStore {
+/// 목록을 저장하면 알린다 — 맨 밑에 떠 있는 계획 화면이 설정에서 바꾼 목록을 다시 그리게(2026-11-24).
+class PlanStore extends ChangeNotifier {
   PlanStore(this.dir) {
     _load();
   }
@@ -304,6 +307,7 @@ class PlanStore {
       rethrow;
     }
     logInfo('계획 저장: 평일 ${items.where((i) => i.weekday).length}개 · 주말 ${weekend.length}개(적용 $k)');
+    notifyListeners();
     return null;
   }
 
