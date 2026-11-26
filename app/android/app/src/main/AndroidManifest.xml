@@ -27,6 +27,18 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
         </activity>
+        <!-- F-102 홈 화면 위젯(보기 전용). exported는 런처가 부르려면 필요 — 받는 것은 다시 그리기뿐이고 앱 파일을 읽기만 한다. -->
+        <receiver
+            android:name=".PlanWidget"
+            android:label="성공습관"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/plan_widget_info" />
+        </receiver>
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data

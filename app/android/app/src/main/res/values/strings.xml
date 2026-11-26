@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- F-102 위젯 목록에 보이는 설명 -->
+    <string name="widget_description">오늘 계획 진행 · 🔥 연속</string>
+</resources>

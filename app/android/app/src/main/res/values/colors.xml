@@ -2,4 +2,11 @@
 <resources>
     <!-- 앱 아이콘 바탕: 밝은 파랑(2026-11-19 사용자 선택 — 기존판의 남색 #042C53보다 밝게, 두 앱이 구분된다) -->
     <color name="ic_launcher_background">#378ADD</color>
+    <!-- F-102 위젯 — theme.dart 라이트 색과 같게(다크는 values-night/colors.xml) -->
+    <color name="widget_bg">#FBFCFA</color>
+    <color name="widget_text">#1C2520</color>
+    <color name="widget_sub">#68756D</color>
+    <color name="widget_accent">#2E6A55</color>
+    <color name="widget_track">#E3E9E1</color>
+    <color name="widget_warn">#C0433A</color>
 </resources>
