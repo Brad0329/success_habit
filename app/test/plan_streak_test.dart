@@ -133,6 +133,22 @@ void main() {
       await s.toggle(DateTime(start.year, start.month, start.day + k), id, today);
     }
     expect(planStreaks(s, today).today[id], (streak: 400, misses: 0));
+    expect(planBestStreaks(s, start, today, today)[id], 400); // F-043
+  });
+
+  group('F-043 기간 안 최장 연속', () {
+    test('끊긴 뒤 다시 이은 것보다 긴 쪽 / 기간 시작 전은 안 센다', () async {
+      // 5·6·7 함, 8 놓침, 9 함, 10·11 주말 기본 보류, 12 함 — 오늘 14
+      final (s, id) = await one('운동', 5, [5, 6, 7, 9, 12], 14);
+      expect(planBestStreaks(s, d(5), d(12), d(14))[id], 3);
+      expect(planBestStreaks(s, d(7), d(12), d(14))[id], 2);
+    });
+
+    test('사이의 보류는 건너뛰고, 오늘 아직 안 한 것은 끊지 않는다', () async {
+      final (s, id) = await one('운동', 5, [5, 7], 8);
+      await s.toggleHold(d(6), id, d(8));
+      expect(planBestStreaks(s, d(5), d(8), d(8))[id], 2);
+    });
   });
 
   test('달력 점: 두 번째로 놓친 날에만 — 오늘 아직인 DO와 미래엔 없다', () async {

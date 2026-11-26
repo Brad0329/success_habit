@@ -3,7 +3,10 @@
 import 'dart:io';
 
 import 'package:chaerok/plan_stats.dart';
+import 'package:chaerok/plan_stats_screen.dart';
+import 'package:chaerok/plan_streak.dart';
 import 'package:chaerok/plans.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 // 10월 5~9일 = 월~금, 10·11일 = 토·일.
@@ -86,6 +89,99 @@ void main() {
     await s.adoptDontDefault(d(5));
     await s.toggle(d(6), s.current.single.id, d(7));
     expect(row(planStats(s, d(5), d(7), d(7)).current.single), ('야식', 2, 3, 0));
+  });
+
+  group('F-043 달별 비율 추이', () {
+    // 2026-09: 1일 = 화, 주말 8일 → 평일 22일. 10-01~14: 평일 10일.
+    final today = DateTime(2026, 10, 14);
+    DateTime sep(int day) => DateTime(2026, 9, day);
+
+    /// 9-01부터 [운동, 독서] — 9월은 1·2일 빼고 평일 전부(20/22), 10월은 13·14일 빼고 전부(8/10) '운동' 체크.
+    /// [dropRead]면 10-01에 '독서'를 지운다.
+    Future<(PlanStore, String)> seed({bool dropRead = false}) async {
+      final s = PlanStore(tmp);
+      await s.saveList([(null, '운동'), (null, '독서')], sep(1));
+      final id = idOf(s, '운동');
+      for (var k = 0; k < 44; k++) {
+        final day = DateTime(2026, 9, 3 + k); // 9-03 ~ 10-16
+        if (isWeekend(day) || !day.isBefore(DateTime(2026, 10, 13))) continue;
+        await s.toggle(day, id, today);
+      }
+      if (dropRead) await s.saveList([(id, '운동')], d(1));
+      return (s, id);
+    }
+
+    test('첫 목록 달부터 이번 달까지 — 9월 91%·10월 80%, 지난달 대비 −11%p, 절단 없음', () async {
+      final (s, id) = await seed();
+      final tr = planTrend(s, today);
+      expect(tr.months, [DateTime(2026, 9), DateTime(2026, 10)]);
+      expect(tr.totalMonths, 2);
+      expect([for (final r in tr.rates[id]!) (r! * 100).round()], [91, 80]);
+      expect(tr.delta(id), -11);
+    });
+
+    test('첫 목록이 3달보다 앞이면 최근 3달 + 전체 달 수', () async {
+      final s = PlanStore(tmp);
+      await s.saveList([(null, '운동')], DateTime(2026, 6, 15));
+      final tr = planTrend(s, today);
+      expect(tr.months, [DateTime(2026, 8), DateTime(2026, 9), DateTime(2026, 10)]);
+      expect(tr.totalMonths, 5);
+    });
+
+    testWidgets('화면: 3달보다 오래된 기록이면 "전체 5달 중 최근 3달"', (t) async {
+      final s = PlanStore(tmp);
+      await t.runAsync(() => s.saveList([(null, '운동')], DateTime(2026, 6, 15)));
+      t.view.physicalSize = const Size(800, 2400);
+      t.view.devicePixelRatio = 1;
+      addTearDown(t.view.reset);
+      await t.pumpWidget(MaterialApp(home: PlanStatsScreen(store: s, now: () => DateTime(2026, 10, 14, 21))));
+      expect(t.widget<Text>(find.byKey(const ValueKey('trend-cut'))).data, '전체 5달 중 최근 3달');
+    });
+
+    test('해야 한 날 0인 달은 null, 그러면 지난달 대비도 없음', () async {
+      final s = PlanStore(tmp);
+      await s.saveList([(null, '운동')], sep(28));
+      final id = idOf(s, '운동');
+      for (var k = 1; k <= 14; k++) {
+        if (!isWeekend(d(k))) await s.toggleHold(d(k), id, today);
+      }
+      final tr = planTrend(s, today);
+      expect(tr.rates[id]!.last, isNull);
+      expect(tr.delta(id), isNull);
+    });
+
+    test('깨진 파일 → 달 0개, 최장 연속 0건', () {
+      File('${tmp.path}/plans.json').writeAsStringSync('{깨짐');
+      final s = PlanStore(tmp);
+      expect(planTrend(s, today).months, isEmpty);
+      expect(planBestStreaks(s, sep(1), today, today), isEmpty);
+    });
+
+    testWidgets('화면: 연속 · 달별 추이 묶음 — 기간을 바꾸면 최장 연속만 바뀌고, 지운 항목은 없고, 풍선에 규칙', (t) async {
+      final (s, id) = (await t.runAsync(() => seed(dropRead: true)))!;
+      t.view.physicalSize = const Size(800, 2400);
+      t.view.devicePixelRatio = 1;
+      addTearDown(t.view.reset);
+      await t.pumpWidget(MaterialApp(home: PlanStatsScreen(store: s, now: () => DateTime(2026, 10, 14, 21))));
+      Text txt(String key) => t.widget<Text>(find.byKey(ValueKey(key)));
+      expect(find.text('연속 · 달별 추이'), findsOneWidget);
+      expect(txt('trend-$id-0').data, '9월 91%');
+      expect(txt('trend-$id-1').data, '10월 80%');
+      expect(txt('delta-$id').data, '▼ 11%p');
+      expect(find.byKey(const ValueKey('trend-cut')), findsNothing);
+      expect(txt('best-$id').data, '최장 🔥 8일'); // 이번 달: 10-01·02·05~09·12 이어짐, 13 놓침
+      await t.tap(find.text('지난 달'));
+      await t.pump();
+      expect(txt('best-$id').data, '최장 🔥 20일'); // 9-03~30 평일 전부
+      // 10-01에 지운 '독서'는 9월 기간의 '지운 항목' 막대에만 — 이 묶음의 줄은 '운동' 하나
+      expect(find.text('지운 항목'), findsOneWidget);
+      expect(
+          find.byWidgetPredicate((w) => w.key is ValueKey<String> && (w.key! as ValueKey<String>).value.startsWith('best-')),
+          findsOneWidget);
+      expect(txt('trend-$id-0').data, '9월 91%');
+      final help = t.widget<Tooltip>(find.byKey(const ValueKey('plan-stats-help')));
+      expect(help.message, allOf(contains('최장 연속'), contains('달별 추이')));
+    });
   });
 
   test('기간 빠른 선택', () {

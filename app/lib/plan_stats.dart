@@ -76,6 +76,47 @@ PlanStats planStats(PlanStore store, DateTime from, DateTime to, DateTime today)
   return PlanStats(start, end, days, current, byId.values.toList());
 }
 
+/// F-043 달별 비율 추이 — 오늘 기준 최근 [trendMonths]달(첫 목록 달보다 앞선 달은 없음).
+const trendMonths = 3;
+
+class PlanTrend {
+  PlanTrend(this.months, this.totalMonths, this.rates);
+
+  /// 보이는 달(그 달 1일), 오래된 달부터.
+  final List<DateTime> months;
+
+  /// 첫 목록 달부터 이번 달까지 달 수 — [months]보다 많으면 화면이 "전체 N달 중 최근 M달"을 적는다.
+  final int totalMonths;
+
+  /// 항목 id → 달마다 비율(해야 한 날 0이면 null), [months]와 같은 순서.
+  final Map<String, List<double?>> rates;
+
+  /// 이번 달 − 지난달(%p, 화면에 보이는 반올림 % 끼리 뺀다). 달이 둘 미만이거나 한쪽이 null이면 null.
+  int? delta(String id) {
+    final r = rates[id];
+    if (r == null || r.length < 2 || r[r.length - 1] == null || r[r.length - 2] == null) return null;
+    return (r.last! * 100).round() - (r[r.length - 2]! * 100).round();
+  }
+}
+
+PlanTrend planTrend(PlanStore store, DateTime today) {
+  final first = store.firstDay;
+  if (first == null) return PlanTrend(const [], 0, const {});
+  final thisMonth = DateTime(today.year, today.month);
+  final firstMonth = DateTime(first.year, first.month);
+  final total = (thisMonth.year - firstMonth.year) * 12 + thisMonth.month - firstMonth.month + 1;
+  final shown = total < trendMonths ? total : trendMonths;
+  final months = [for (var k = shown - 1; k >= 0; k--) DateTime(thisMonth.year, thisMonth.month - k)];
+  final rates = <String, List<double?>>{};
+  for (var m = 0; m < months.length; m++) {
+    final st = planStats(store, months[m], DateTime(months[m].year, months[m].month + 1, 0), today);
+    for (final s in [...st.current, ...st.removed]) {
+      (rates[s.item.id] ??= List<double?>.filled(months.length, null))[m] = s.rate;
+    }
+  }
+  return PlanTrend(months, total, rates);
+}
+
 /// F-037 기간 빠른 선택.
 enum PlanPeriod {
   week('이번 주'),

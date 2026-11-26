@@ -1,11 +1,13 @@
 /// F-037 계획 통계 화면 — 기간(빠른 선택·직접)을 골라 항목마다 "성공 / 해야 한 날 · 비율" + 막대(목업 '막대 목록', 2026-11-24).
 /// DO·DON'T 묶음, 맨 위에 묶음별 합계, 지금 목록에 없는 항목은 아래 '지운 항목'. 읽기만 한다.
+/// F-043 맨 아래 '연속 · 달별 추이' — 항목마다 기간 안 최장 연속 + 오늘 기준 최근 3달 비율 막대 + 지난달 대비 ▲▼(목업 2026-11-26 "이대로").
 library;
 
 import 'package:flutter/material.dart';
 
 import 'plan_screen.dart';
 import 'plan_stats.dart';
+import 'plan_streak.dart';
 import 'plans.dart';
 
 /// 물음표를 누르면 뜨는 설명 풍선(2026-11-24 사용자) — 세는 규칙은 plan_stats.dart 머리말과 같다.
@@ -16,7 +18,9 @@ const _help = '통계는 이렇게 셉니다\n'
     '• 보류 N일 = 그날 길게 눌러 보류한 날 — 해야 한 날에서 뺍니다\n'
     '• 주말·휴일에 자동으로 보류되는 평일 계획은 세지 않습니다 (그날 풀면 셉니다)\n'
     '• 오늘까지 셉니다 — 오늘 아직 안 한 항목은 비율이 낮게 보일 수 있습니다\n'
-    '• 이름을 바꾼 항목은 한 줄로, 지금 목록에서 지운 항목은 맨 아래에 모읍니다';
+    '• 이름을 바꾼 항목은 한 줄로, 지금 목록에서 지운 항목은 따로 모읍니다\n'
+    '• 최장 연속 = 고른 기간 안에서 해야 한 날을 이어서 해낸 가장 긴 날 수 (보류·주말 보류는 건너뜀, 오늘 아직은 끊지 않음)\n'
+    '• 달별 추이 = 기간과 상관없이 오늘 기준 최근 $trendMonths달의 달마다 비율, ▲▼는 지난달 대비 (지금 목록 항목만)';
 
 class PlanStatsScreen extends StatefulWidget {
   const PlanStatsScreen({super.key, required this.store, this.now = DateTime.now});
@@ -121,6 +125,7 @@ class _PlanStatsScreenState extends State<PlanStatsScreen> {
             for (final s in st.current) if (s.item.kind == k) s,
           ]),
           ..._section(theme, '지운 항목', st.removed, faded: true),
+          ..._trendSection(theme, planBestStreaks(widget.store, _from, _to, _today), planTrend(widget.store, _today)),
         ],
       ]),
     );
@@ -181,5 +186,75 @@ class _PlanStatsScreenState extends State<PlanStatsScreen> {
           ),
       ]),
     );
+  }
+
+  /// F-043 '연속 · 달별 추이' 묶음 — 지금 목록 항목만. 보일 달이 없으면(깨진 파일·목록 없음) 묶음째 없음.
+  List<Widget> _trendSection(ThemeData theme, Map<String, int> best, PlanTrend tr) {
+    final items = widget.store.current;
+    if (items.isEmpty || tr.months.isEmpty) return const [];
+    final small = theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.outline);
+    final n = tr.months.length;
+    return [
+      const SizedBox(height: 20),
+      Text('연속 · 달별 추이', style: theme.textTheme.titleMedium),
+      Text('최장 연속은 고른 기간 안 · 달별 비율은 오늘 기준 최근 $n달', style: small),
+      if (tr.totalMonths > n) Text('전체 ${tr.totalMonths}달 중 최근 $n달', key: const ValueKey('trend-cut'), style: small),
+      const SizedBox(height: 6),
+      for (final i in items) _trendRow(theme, i, best[i.id] ?? 0, tr),
+    ];
+  }
+
+  Widget _trendRow(ThemeData theme, PlanItem item, int best, PlanTrend tr) {
+    final color = item.kind == PlanKind.dont ? planDontColor : planDoColor;
+    final rates = tr.rates[item.id] ?? List<double?>.filled(tr.months.length, null);
+    final small = theme.textTheme.labelSmall?.copyWith(color: theme.colorScheme.outline);
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Row(children: [
+          Expanded(child: Text(item.title, style: theme.textTheme.bodyLarge, overflow: TextOverflow.ellipsis)),
+          Text(best > 0 ? '최장 🔥 $best일' : '최장 0일', key: ValueKey('best-${item.id}'), style: theme.textTheme.bodySmall),
+        ]),
+        const SizedBox(height: 4),
+        Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+          for (var k = 0; k < tr.months.length; k++)
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 3),
+                child: Column(children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(4),
+                    child: Container(
+                      height: 32,
+                      color: color.withAlpha(35),
+                      alignment: Alignment.bottomCenter,
+                      child: FractionallySizedBox(heightFactor: rates[k] ?? 0, widthFactor: 1, child: ColoredBox(color: color)),
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text('${tr.months[k].month}월 ${_rate(rates[k])}', key: ValueKey('trend-${item.id}-$k'), style: small),
+                ]),
+              ),
+            ),
+          SizedBox(width: 64, child: _delta(theme, item, tr.delta(item.id))),
+        ]),
+      ]),
+    );
+  }
+
+  static String _rate(double? r) => r == null ? '—' : '${(r * 100).round()}%';
+
+  /// 지난달 대비 ▲ 세이지 / ▼ 빨강 / ± 0 흐림 — 비교할 수 없으면 빈 칸.
+  Widget _delta(ThemeData theme, PlanItem item, int? d) {
+    if (d == null) return const SizedBox.shrink();
+    final (text, color) = d > 0
+        ? ('▲ $d%p', planDoColor)
+        : d < 0
+            ? ('▼ ${-d}%p', planDontColor)
+            : ('± 0%p', theme.colorScheme.outline);
+    return Text(text,
+        key: ValueKey('delta-${item.id}'),
+        textAlign: TextAlign.right,
+        style: theme.textTheme.bodySmall?.copyWith(color: color));
   }
 }
