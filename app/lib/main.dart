@@ -1,4 +1,4 @@
-// '성공습관' — 계획 달력 전용 앱. 화면은 계획(맨 밑)과 설정 둘이다.
+// '성공습관' — 계획 달력 전용 앱. 화면은 계획(맨 밑)·설정·도움말이다.
 // 수집·목록·공유(채록 기능)는 2026-11-21에 다른 저장소(M채록, `chaerok_phone`)로 갈라졌다 — 여기에는 소스가 없다.
 import 'dart:io';
 
@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 
 import 'app_menu.dart';
 import 'app_paths.dart';
+import 'help_screen.dart';
 import 'log.dart';
 import 'plan_screen.dart';
 import 'plans.dart';
@@ -62,6 +63,7 @@ class ChaerokApp extends StatelessWidget {
         // 맨 밑 화면이 계획이라 메뉴의 '계획'은 위를 걷어내고 내려간다(같은 화면을 둘 만들지 않는다).
         openPlan: (c) => Navigator.of(c).popUntil((r) => r.isFirst),
         openSettings: (c) => _push(c, SettingsScreen(plans: plans)),
+        openHelp: (c) => _push(c, const HelpScreen()),
         child: guardTextScale(ctx, child),
       ),
       home: PlanScreen(store: plans),

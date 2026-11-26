@@ -8,10 +8,11 @@ library;
 
 import 'package:flutter/material.dart';
 
-/// 메뉴 항목. **순서가 곧 메뉴 순서다**(계획이 위, 설정이 아래).
+/// 메뉴 항목. **순서가 곧 메뉴 순서다**(계획·설정·도움말).
 enum AppMenuItem {
   plan('계획', Icons.event_available),
-  settings('설정', Icons.settings_outlined);
+  settings('설정', Icons.settings_outlined),
+  help('도움말', Icons.help_outline); // F-101
 
   const AppMenuItem(this.label, this.icon);
 
@@ -22,10 +23,11 @@ enum AppMenuItem {
 /// 화면 여는 법을 앱 전체에 내려 준다 — `MaterialApp.builder`에 두어 모든 화면(쌓인 것 포함)의 조상이 된다.
 /// 화면마다 의존성을 생성자로 넘기지 않으려고 이렇게 둔다. null인 입구는 메뉴에 안 나온다.
 class AppNav extends InheritedWidget {
-  const AppNav({super.key, required super.child, this.openPlan, this.openSettings});
+  const AppNav({super.key, required super.child, this.openPlan, this.openSettings, this.openHelp});
 
   final void Function(BuildContext)? openPlan;
   final void Function(BuildContext)? openSettings;
+  final void Function(BuildContext)? openHelp;
 
   static AppNav? maybeOf(BuildContext context) => context.dependOnInheritedWidgetOfExactType<AppNav>();
 
@@ -34,10 +36,12 @@ class AppNav extends InheritedWidget {
   void Function(BuildContext)? opener(AppMenuItem item) => switch (item) {
         AppMenuItem.plan => openPlan,
         AppMenuItem.settings => openSettings,
+        AppMenuItem.help => openHelp,
       };
 
   @override
-  bool updateShouldNotify(AppNav old) => openPlan != old.openPlan || openSettings != old.openSettings;
+  bool updateShouldNotify(AppNav old) => 
+      openPlan != old.openPlan || openSettings != old.openSettings || openHelp != old.openHelp;
 }
 
 /// 앱바 끝에 붙이는 `⋯`. [current]는 지금 보고 있는 화면이고 그 항목은 잠긴다(어디 있는지 보인다).

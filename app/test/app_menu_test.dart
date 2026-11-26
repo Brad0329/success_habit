@@ -2,6 +2,7 @@
 import 'dart:io';
 
 import 'package:chaerok/app_menu.dart';
+import 'package:chaerok/help_screen.dart';
 import 'package:chaerok/log.dart';
 import 'package:chaerok/main.dart';
 import 'package:chaerok/plan_screen.dart';
@@ -17,10 +18,11 @@ void _push(BuildContext c, String name, AppMenuItem current) =>
     Navigator.of(c).push(MaterialPageRoute<void>(builder: (_) => _page(name, current)));
 
 void main() {
-  Widget app({bool settings = true}) => MaterialApp(
+  Widget app({bool settings = true, bool help = false}) => MaterialApp(
         builder: (_, child) => AppNav(
           openPlan: (c) => _push(c, '계획 화면', AppMenuItem.plan),
           openSettings: settings ? (c) => _push(c, '설정 화면', AppMenuItem.settings) : null,
+          openHelp: help ? (c) => _push(c, '도움말 화면', AppMenuItem.help) : null,
           child: child!,
         ),
         home: _page('바닥', null),
@@ -41,12 +43,12 @@ void main() {
 
   String top(WidgetTester t) => t.widget<Text>(find.descendant(of: find.byType(AppBar).last, matching: find.byType(Text))).data!;
 
-  testWidgets('입구가 다 있으면 메뉴 순서 = 계획·설정', (t) async {
-    await t.pumpWidget(app());
+  testWidgets('입구가 다 있으면 메뉴 순서 = 계획·설정·도움말', (t) async {
+    await t.pumpWidget(app(help: true));
     final items = await menu(t);
     expect(items.map((i) => i.value), AppMenuItem.values);
-    expect(items.map((i) => (i.child! as Row).children.whereType<Text>().single.data), ['계획', '설정']);
-    expect(items.map((i) => i.enabled), [true, true]);
+    expect(items.map((i) => (i.child! as Row).children.whereType<Text>().single.data), ['계획', '설정', '도움말']);
+    expect(items.map((i) => i.enabled), [true, true, true]);
   });
 
   testWidgets('입구가 없는 항목(설정)은 메뉴에 안 나온다', (t) async {
@@ -71,7 +73,7 @@ void main() {
     expect(back, ['계획 화면', '바닥']);
   });
 
-  testWidgets('조립: 맨 밑 화면이 계획이고 메뉴는 계획(잠김)·설정 둘 / 설정에 계획 두 줄 / 설정에서 계획을 고르면 맨 밑으로', (t) async {
+  testWidgets('조립: 맨 밑 화면이 계획이고 메뉴는 계획(잠김)·설정·도움말 / 설정에 계획 두 줄 / 설정에서 계획을 고르면 맨 밑으로', (t) async {
     final tmp = Directory.systemTemp.createTempSync('chaerok_menu');
     addTearDown(() => tmp.deleteSync(recursive: true));
     initLog(tmp);
@@ -79,8 +81,8 @@ void main() {
     await t.pumpAndSettle();
     expect(find.byType(PlanScreen), findsOneWidget);
     final items = await menu(t);
-    expect(items.map((i) => i.value), [AppMenuItem.plan, AppMenuItem.settings]);
-    expect(items.map((i) => i.enabled), [false, true]);
+    expect(items.map((i) => i.value), [AppMenuItem.plan, AppMenuItem.settings, AppMenuItem.help]);
+    expect(items.map((i) => i.enabled), [false, true, true]);
     await t.tap(find.text('설정').last);
     await t.pumpAndSettle();
     expect(find.byType(SettingsScreen), findsOneWidget);
@@ -90,5 +92,22 @@ void main() {
     expect(find.byType(SettingsScreen), findsNothing);
     expect(find.byType(PlanScreen), findsOneWidget);
     expect(find.byType(AppBar), findsOneWidget);
+  });
+
+  testWidgets('F-101 조립: 도움말을 누르면 도움말 화면이 위에 열리고 그 항목은 잠긴다 / 뒤로 = 계획 화면', (t) async {
+    final tmp = Directory.systemTemp.createTempSync('chaerok_menu');
+    addTearDown(() => tmp.deleteSync(recursive: true));
+    initLog(tmp);
+    await t.pumpWidget(ChaerokApp(plans: PlanStore(Directory('${tmp.path}/plans'))));
+    await t.pumpAndSettle();
+    await pick(t, '도움말');
+    expect(find.byType(HelpScreen), findsOneWidget);
+    expect((await menu(t)).map((i) => i.enabled), [true, true, false]);
+    await t.tapAt(const Offset(5, 5)); // 메뉴 닫기
+    await t.pumpAndSettle();
+    await t.pageBack();
+    await t.pumpAndSettle();
+    expect(find.byType(HelpScreen), findsNothing);
+    expect(find.byType(PlanScreen), findsOneWidget);
   });
 }
