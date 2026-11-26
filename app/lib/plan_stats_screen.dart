@@ -35,6 +35,13 @@ class _PlanStatsScreenState extends State<PlanStatsScreen> {
   PlanPeriod? _period = PlanPeriod.month; // null = 직접 고른 기간
   late DateTime _from;
   late DateTime _to;
+  final _search = TextEditingController(); // F-044 — 화면을 나가면 지워진다(저장 없음)
+
+  @override
+  void dispose() {
+    _search.dispose();
+    super.dispose();
+  }
 
   DateTime get _today {
     final n = widget.now();
@@ -81,7 +88,9 @@ class _PlanStatsScreenState extends State<PlanStatsScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final st = planStats(widget.store, _from, _to, _today);
+    final all = planStats(widget.store, _from, _to, _today);
+    final q = _search.text;
+    final st = filterStats(all, q);
     final sameYear = st.from.year == st.to.year;
     final range = st.days == 0
         ? '${_ymd(_from)} ~ (아직 오지 않은 기간)'
@@ -116,9 +125,13 @@ class _PlanStatsScreenState extends State<PlanStatsScreen> {
             child: Text('계획 파일을 읽지 못했습니다',
                 style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.error)),
           ),
+        const SizedBox(height: 10),
+        _searchField(theme, all, st),
         const SizedBox(height: 12),
-        if (st.isEmpty)
+        if (all.isEmpty)
           Text('이 기간에는 계획이 없습니다', style: theme.textTheme.bodyLarge)
+        else if (st.isEmpty)
+          Text("'$q'에 맞는 항목이 없습니다", key: const ValueKey('search-none'), style: theme.textTheme.bodyLarge)
         else ...[
           _totals(theme, st),
           for (final k in PlanKind.values) ..._section(theme, _label(k), [
@@ -129,6 +142,40 @@ class _PlanStatsScreenState extends State<PlanStatsScreen> {
         ],
       ]),
     );
+  }
+
+  /// F-044 검색창 — 검색어가 있으면 아래에 "검색 결과 M개 / 이 기간 N개"(전체 건수를 함께).
+  Widget _searchField(ThemeData theme, PlanStats all, PlanStats shown) {
+    final count = shown.current.length + shown.removed.length;
+    final total = all.current.length + all.removed.length;
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      TextField(
+        key: const ValueKey('plan-stats-search'),
+        controller: _search,
+        onChanged: (_) => setState(() {}),
+        decoration: InputDecoration(
+          isDense: true,
+          hintText: '항목 이름으로 찾기',
+          prefixIcon: const Icon(Icons.search),
+          border: const OutlineInputBorder(),
+          suffixIcon: _search.text.isEmpty
+              ? null
+              : IconButton(
+                  key: const ValueKey('plan-stats-search-clear'),
+                  tooltip: '지우기',
+                  icon: const Icon(Icons.close),
+                  onPressed: () => setState(_search.clear),
+                ),
+        ),
+      ),
+      if (_search.text.isNotEmpty)
+        Padding(
+          padding: const EdgeInsets.only(top: 4),
+          child: Text('검색 결과 $count개 / 이 기간 $total개',
+              key: const ValueKey('search-count'),
+              style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.outline)),
+        ),
+    ]);
   }
 
   static String _label(PlanKind k) => k == PlanKind.dont ? "DON'T" : 'DO';
@@ -190,7 +237,7 @@ class _PlanStatsScreenState extends State<PlanStatsScreen> {
 
   /// F-043 '연속 · 달별 추이' 묶음 — 지금 목록 항목만. 보일 달이 없으면(깨진 파일·목록 없음) 묶음째 없음.
   List<Widget> _trendSection(ThemeData theme, Map<String, int> best, PlanTrend tr) {
-    final items = widget.store.current;
+    final items = [for (final i in widget.store.current) if (planNameMatches(i.title, _search.text)) i];
     if (items.isEmpty || tr.months.isEmpty) return const [];
     final small = theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.outline);
     final n = tr.months.length;

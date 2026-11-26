@@ -83,6 +83,9 @@ String dayKey(DateTime d) =>
 
 String _norm(String s) => s.replaceAll(RegExp(r'\s+'), '').toLowerCase();
 
+/// 이름 비교 열쇠 — 띄어쓰기·대소문자 무시. 같은 이름 금지(F-016)와 통계 검색(F-044)이 같이 쓴다.
+String planNameKey(String s) => _norm(s);
+
 /// 저장할 수 있으면 null, 아니면 화면에 보일 이유.
 String? validatePlanTitles(List<String> titles) {
   if (titles.length > maxPlanItems) return '계획은 $maxPlanItems개까지';

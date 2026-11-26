@@ -76,6 +76,14 @@ PlanStats planStats(PlanStore store, DateTime from, DateTime to, DateTime today)
   return PlanStats(start, end, days, current, byId.values.toList());
 }
 
+/// F-044 이름에 [query]가 들어 있나(띄어쓰기·대소문자 무시). 빈 검색어면 모두 맞음.
+bool planNameMatches(String title, String query) => planNameKey(title).contains(planNameKey(query));
+
+/// F-044 맞는 항목만 남긴 통계 — 합계(`total`)도 남은 항목으로 다시 센다. 기간·날 수는 그대로.
+PlanStats filterStats(PlanStats st, String query) => PlanStats(st.from, st.to, st.days,
+    [for (final s in st.current) if (planNameMatches(s.item.title, query)) s],
+    [for (final s in st.removed) if (planNameMatches(s.item.title, query)) s]);
+
 /// F-043 달별 비율 추이 — 오늘 기준 최근 [trendMonths]달(첫 목록 달보다 앞선 달은 없음).
 const trendMonths = 3;
 

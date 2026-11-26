@@ -184,6 +184,71 @@ void main() {
     });
   });
 
+  group('F-044 통계 검색', () {
+    test('이름 맞춤: 들어 있으면 맞음, 띄어쓰기·대소문자 무시, 빈 검색어는 모두', () {
+      expect(planNameMatches('영어 독해', '독'), isTrue);
+      expect(planNameMatches('영어 독해', '영어독해'), isTrue);
+      expect(planNameMatches('영어독해', '영어 독해'), isTrue);
+      expect(planNameMatches('English', 'ENG'), isTrue);
+      expect(planNameMatches('운동', '독'), isFalse);
+      expect(planNameMatches('운동', ''), isTrue);
+    });
+
+    test('걸러진 통계: 지금·지운 항목 모두 맞는 것만, 합계도 남은 항목으로', () async {
+      final s = PlanStore(tmp);
+      await s.saveList([(null, '운동'), (null, '독서'), (null, '독후감'), (null, '수영')], d(5));
+      await s.toggle(d(5), idOf(s, '독서'), d(7));
+      await s.saveList([(idOf(s, '운동'), '운동'), (idOf(s, '독서'), '독서')], d(6)); // 독후감·수영 지움
+      final st = filterStats(planStats(s, d(5), d(7), d(7)), '독');
+      expect([for (final x in st.current) x.item.title], ['독서']);
+      expect([for (final x in st.removed) x.item.title], ['독후감']);
+      expect(st.total(PlanKind.doIt), (1, 4)); // 독서 1/3 + 독후감 0/1
+      expect(st.days, 3);
+    });
+
+    testWidgets('화면: 검색어로 걸러 보기 — 건수·합계·0건 안내·지우기·기간 바꿔도 유지', (t) async {
+      final s = PlanStore(tmp);
+      await t.runAsync(() => s.saveItems([
+            (null, '운동', PlanKind.doIt),
+            (null, '독서', PlanKind.doIt),
+            (null, '영어 독해', PlanKind.doIt),
+            (null, '야식', PlanKind.dont),
+          ], d(5)));
+      t.view.physicalSize = const Size(800, 2400);
+      t.view.devicePixelRatio = 1;
+      addTearDown(t.view.reset);
+      await t.pumpWidget(MaterialApp(home: PlanStatsScreen(store: s, now: () => DateTime(2026, 10, 7, 21))));
+      final search = find.byKey(const ValueKey('plan-stats-search'));
+      expect(find.byKey(const ValueKey('search-count')), findsNothing);
+      expect(find.textContaining('전체  DO 0/9'), findsOneWidget);
+
+      await t.enterText(search, '독');
+      await t.pump();
+      expect(t.widget<Text>(find.byKey(const ValueKey('search-count'))).data, '검색 결과 2개 / 이 기간 4개');
+      expect(find.text('운동'), findsNothing);
+      expect(find.text('야식'), findsNothing);
+      expect(find.text("DON'T"), findsNothing);
+      expect(find.text('독서'), findsNWidgets(2)); // DO 막대 줄 + 연속 · 달별 추이 줄
+      expect(find.textContaining('전체  DO 0/6'), findsOneWidget);
+      expect(find.textContaining("DON'T"), findsNothing);
+
+      await t.tap(find.text('이번 주'));
+      await t.pump();
+      expect(find.byKey(const ValueKey('search-count')), findsOneWidget);
+      expect(find.text('운동'), findsNothing);
+
+      await t.enterText(search, '없는이름');
+      await t.pump();
+      expect(find.byKey(const ValueKey('search-none')), findsOneWidget);
+      expect(find.textContaining('전체  '), findsNothing);
+
+      await t.tap(find.byKey(const ValueKey('plan-stats-search-clear')));
+      await t.pump();
+      expect(find.byKey(const ValueKey('search-count')), findsNothing);
+      expect(find.text('운동'), findsNWidgets(2));
+    });
+  });
+
   test('기간 빠른 선택', () {
     final today = DateTime(2026, 11, 24); // 화요일
     expect(periodRange(PlanPeriod.week, today), (DateTime(2026, 11, 22), today));
