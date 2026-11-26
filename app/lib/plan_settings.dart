@@ -44,9 +44,94 @@ class _PlanSettingsTileState extends State<PlanSettingsTile> {
   Widget build(BuildContext context) {
     final s = widget.store;
     return Column(mainAxisSize: MainAxisSize.min, children: [
+      ListTile(
+        key: const ValueKey('identity-tile'),
+        contentPadding: EdgeInsets.zero,
+        leading: const Icon(Icons.person_outline),
+        title: const Text('나는 이런 사람'),
+        subtitle: Text(s.identities.isEmpty ? '선택 — 안 씀' : s.identities.join(' · '),
+            maxLines: 1, overflow: TextOverflow.ellipsis),
+        trailing: const Icon(Icons.chevron_right),
+        onTap: () async {
+          await Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => IdentityEditScreen(store: s)));
+          if (mounted) setState(() {});
+        },
+      ),
       _tile('평일 계획', Icons.event_available, _summary(s.weekdayItems), false),
       _tile('주말·휴일 계획', Icons.weekend_outlined, _summary(s.weekendItems), true),
     ]);
+  }
+}
+
+/// F-039 '나는 이런 사람' 편집 — 칸 [maxIdentities]개 + 저장. 빈 칸은 버린다(칸을 비우고 저장 = 지우기). 안 써도 된다.
+class IdentityEditScreen extends StatefulWidget {
+  const IdentityEditScreen({super.key, required this.store});
+  final PlanStore store;
+
+  @override
+  State<IdentityEditScreen> createState() => _IdentityEditScreenState();
+}
+
+class _IdentityEditScreenState extends State<IdentityEditScreen> {
+  late final List<TextEditingController> _fields;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    final now = widget.store.identities;
+    _fields = [for (var k = 0; k < maxIdentities; k++) TextEditingController(text: k < now.length ? now[k] : '')];
+  }
+
+  @override
+  void dispose() {
+    for (final c in _fields) {
+      c.dispose();
+    }
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    String? error;
+    try {
+      error = await widget.store.saveIdentities([for (final c in _fields) c.text]);
+    } on Object catch (e) {
+      logError('정체성 문장 저장 실패', e);
+      error = '저장하지 못했습니다';
+    }
+    if (!mounted) return;
+    if (error == null) {
+      Navigator.of(context).pop();
+    } else {
+      setState(() => _error = error);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Scaffold(
+      appBar: AppBar(title: const Text('나는 이런 사람'), actions: const [AppMenu()]),
+      body: ListView(padding: const EdgeInsets.all(16), children: [
+        Text('되고 싶은 사람을 한 문장으로 — 계획 화면 맨 위에 보입니다. 쓰지 않아도 됩니다.',
+            style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.outline)),
+        for (var k = 0; k < _fields.length; k++)
+          Padding(
+            padding: const EdgeInsets.only(top: 12),
+            child: TextField(
+              key: ValueKey('identity-field-$k'),
+              controller: _fields[k],
+              maxLength: maxIdentityChars,
+              onChanged: (_) => _error == null ? null : setState(() => _error = null),
+              decoration: const InputDecoration(hintText: '나는 ○○한 사람이다', border: OutlineInputBorder()),
+            ),
+          ),
+        if (_error != null)
+          Text(_error!, style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.error)),
+        const SizedBox(height: 12),
+        FilledButton(key: const ValueKey('identity-save'), onPressed: _save, child: const Text('저장')),
+      ]),
+    );
   }
 }
 

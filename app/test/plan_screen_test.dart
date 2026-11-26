@@ -58,6 +58,12 @@ class _Store extends PlanStore {
   @override
   List<PlanItem> get current => items;
 
+  // F-039 정체성 문장 — 메모리에만(기본 0개).
+  var ids = <String>[];
+
+  @override
+  List<String> get identities => ids;
+
   // F-042 연속 — 첫 목록 날과 날마다 한 항목만 메모리에(둘 다 비면 연속 계산 0건 — 다른 테스트는 그대로).
   DateTime? first;
   final doneDays = <String, Set<String>>{};
@@ -134,6 +140,17 @@ void main() {
     expect(find.textContaining('🔥'), findsNothing);
     expect(find.byKey(const ValueKey('miss-p2')), findsNothing);
     expect(find.byKey(const ValueKey('miss-dot-2026-11-12')), findsOneWidget);
+  });
+
+  testWidgets('F-039 정체성 문장이 있으면 달력 위 칸에 한 줄씩, 0개면 칸 없음', (t) async {
+    final s = await show(t);
+    expect(find.byKey(const ValueKey('identity-box')), findsNothing);
+    s.ids = ['나는 운동하는 사람이다', '나는 읽는 사람이다'];
+    await t.tap(day(12)); // 다시 그리게
+    await t.pump();
+    expect(find.byKey(const ValueKey('identity-box')), findsOneWidget);
+    expect(find.descendant(of: find.byKey(const ValueKey('identity-box')), matching: find.byType(Text)), findsNWidgets(2));
+    expect(find.text('나는 운동하는 사람이다'), findsOneWidget);
   });
 
   testWidgets('쓰고 1초 지나면 저장, 그 전엔 저장 안 함', (t) async {
@@ -274,5 +291,24 @@ void main() {
     nav.currentState!.pop();
     await t.pumpAndSettle();
     expect(find.text('운동'), findsOneWidget);
+  });
+
+  // F-039를 채록에서 옮길 때 saveIdentities가 알리지 않아, 설정에서 쓴 문장이 맨 밑 계획 화면에 안 보였다(성공습관만의 구조).
+  testWidgets('F-039 설정(위 화면)에서 정체성 문장을 저장하고 돌아오면 계획 화면에 바로 보인다', (t) async {
+    t.view.physicalSize = const Size(800, 2400);
+    t.view.devicePixelRatio = 1;
+    addTearDown(t.view.reset);
+    final s = PlanStore(tmp);
+    await t.runAsync(() => s.saveItems([(null, '운동', PlanKind.doIt)], d(13))); // 계획이 있어야 달력 위 칸이 뜬다
+    final nav = GlobalKey<NavigatorState>();
+    await t.pumpWidget(MaterialApp(
+        navigatorKey: nav, home: PlanScreen(store: s, now: () => DateTime(2026, 11, 13, 21, 4))));
+    expect(find.text('나는 운동하는 사람이다'), findsNothing);
+    nav.currentState!.push(MaterialPageRoute<void>(builder: (_) => const Scaffold(body: Text('설정'))));
+    await t.pumpAndSettle();
+    await t.runAsync(() => s.saveIdentities(['나는 운동하는 사람이다']));
+    nav.currentState!.pop();
+    await t.pumpAndSettle();
+    expect(find.text('나는 운동하는 사람이다'), findsOneWidget);
   });
 }

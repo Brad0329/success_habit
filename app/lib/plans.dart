@@ -24,6 +24,8 @@ import 'log.dart';
 const maxPlanItems = 30;
 const maxPlanChars = 40;
 const maxReviewChars = 1000; // F-024 하루 평가
+const maxIdentities = 3; // F-039 정체성 문장
+const maxIdentityChars = 40;
 
 /// F-026 계획 종류 — DO(하기) · DON'T(안 하기). DON'T의 체크 = 지켰다.
 enum PlanKind {
@@ -93,6 +95,17 @@ String? validatePlanTitles(List<String> titles) {
   return null;
 }
 
+/// F-039 저장할 수 있으면 null, 아니면 화면에 보일 이유. [texts]는 이미 앞뒤 공백을 지우고 빈 것을 뺀 목록.
+String? validateIdentities(List<String> texts) {
+  if (texts.length > maxIdentities) return '문장은 $maxIdentities개까지';
+  final seen = <String>{};
+  for (final t in texts) {
+    if (t.length > maxIdentityChars) return '문장은 $maxIdentityChars자까지';
+    if (!seen.add(_norm(t))) return '같은 문장이 있습니다';
+  }
+  return null;
+}
+
 /// 목록을 저장하면 알린다 — 맨 밑에 떠 있는 계획 화면이 설정에서 바꾼 목록을 다시 그리게(2026-11-24).
 class PlanStore extends ChangeNotifier {
   PlanStore(this.dir, {this.now = DateTime.now}) {
@@ -116,6 +129,7 @@ class PlanStore extends ChangeNotifier {
   final _held = <String, Set<String>>{}; // F-025 보류 — 날짜 → 항목 id
   final _released = <String, Set<String>>{}; // F-031 쉬는 날 그날만 푼 평일 계획 — 날짜 → 항목 id
   final _holidays = <String>{}; // F-031 휴일로 지정한 평일
+  final _identities = <String>[]; // F-039 정체성 문장(지금 값만, 0개면 파일에 키 없음)
   var _nextId = 1;
 
   /// 평일 DON'T를 주말 계획에 자동으로 넣기 시작한 날(SCHEMA 2026-11-24). null = 아직(옛 파일).
@@ -153,6 +167,8 @@ class PlanStore extends ChangeNotifier {
       _dontFrom = j['dont_default_from'] as String?;
       ((j['missed'] as Map?) ?? const {})
           .forEach((k, v) => _missed[k as String] = {for (final id in v as List) id as String});
+      // F-039: 키가 없는 옛 파일 = 0개. 문자열 목록이 아니면 캐스트가 던져 깨진 파일로 본다.
+      _identities.addAll([for (final t in (j['identities'] as List?) ?? const []) t as String]);
       _nextId = j['next_id'] as int;
       _dontRestFrom = j['dont_rest_from'] as String?;
     } on Object catch (e) {
@@ -164,6 +180,7 @@ class PlanStore extends ChangeNotifier {
       _holidays.clear();
       _dontFrom = null;
       _missed.clear();
+      _identities.clear();
       broken = true;
     }
   }
@@ -516,6 +533,34 @@ class PlanStore extends ChangeNotifier {
     return true;
   }
 
+  /// F-039 정체성 문장(보이는 순서). 안 쓰면 빈 목록 — 정상 상태.
+  List<String> get identities => List.unmodifiable(_identities);
+
+  /// F-039 정체성 문장을 통째로 바꾼다. 앞뒤 공백을 지우고 빈 칸은 버린다.
+  /// 실패면 이유(파일은 그대로), 성공·변화 없음이면 null. 쓰기 실패는 되돌리고 다시 던진다.
+  Future<String?> saveIdentities(List<String> texts) async {
+    if (broken) return '계획 파일을 읽지 못해 저장할 수 없습니다';
+    final next = [for (final t in texts) if (t.trim().isNotEmpty) t.trim()];
+    final error = validateIdentities(next);
+    if (error != null) return error;
+    if (_idsEqual(next, _identities)) return null;
+    final old = List.of(_identities);
+    _identities
+      ..clear()
+      ..addAll(next);
+    try {
+      await _write();
+    } on Object {
+      _identities
+        ..clear()
+        ..addAll(old);
+      rethrow;
+    }
+    logInfo('정체성 문장 저장: ${next.length}개');
+    notifyListeners(); // 맨 밑 계획 화면이 설정에서 바꾼 문장을 바로 그리게(목록 저장과 같이)
+    return null;
+  }
+
   // ---- F-024 하루 평가 — 계획과 따로 `reviews.json`(계획 파일 형식은 그대로) ----------------
   File get _reviewFile => File('${dir.path}/reviews.json');
   final _reviews = <String, String>{};
@@ -601,6 +646,7 @@ class PlanStore extends ChangeNotifier {
           for (final e in _missed.entries)
             if (e.value.isNotEmpty) e.key: e.value.toList()..sort(),
         },
+        if (_identities.isNotEmpty) 'identities': List.of(_identities),
       });
 
   /// 임시 파일에 쓰고 바꿔치기 — 계획·평가 파일이 같이 쓴다(쓰기 지점 하나, file_writers_test).

@@ -15,6 +15,8 @@ const boundaryTested = {
   'plans.dart:maxPlanItems': 'plans_test 검증 — 31개 거부 / 30개 저장',
   'plans.dart:maxPlanChars': 'plans_test 검증 — 41자 거부 / 40자 저장',
   'plans.dart:maxReviewChars': 'plans_test 하루 평가 — 1001자 거부 / 1000자 저장',
+  'plans.dart:maxIdentities': 'plans_test F-039 — 4개 거부 / 3개 저장',
+  'plans.dart:maxIdentityChars': 'plans_test F-039 — 41자 거부 / 40자 저장',
 };
 
 /// 경계 테스트를 두지 않는 것 — 이유와 함께.

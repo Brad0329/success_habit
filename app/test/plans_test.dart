@@ -27,6 +27,20 @@ class _Capture extends PlanStore {
     savedWeekend.add(rows);
     return null;
   }
+
+  // F-039 — 메모리에만(빈 칸 버림은 실제 저장소 규칙과 같게).
+  var ids = <String>[];
+  final savedIds = <List<String>>[];
+
+  @override
+  List<String> get identities => ids;
+
+  @override
+  Future<String?> saveIdentities(List<String> texts) async {
+    savedIds.add(texts);
+    ids = [for (final t in texts) if (t.trim().isNotEmpty) t.trim()];
+    return null;
+  }
 }
 
 void main() {
@@ -621,6 +635,87 @@ void main() {
       expect(at(7).summary(d(7), kind: PlanKind.dont), (0, 0));
       await s.toggleHold(d(7), id, d(7));
       expect(at(7).summary(d(7), kind: PlanKind.dont), (1, 1));
+    });
+  });
+
+  group('F-039 정체성 문장', () {
+    test('저장 → 새로 읽어도 그대로, 앞뒤 공백 제거·빈 칸 버림', () async {
+      final s = open();
+      expect(await s.saveIdentities(['  나는 운동하는 사람이다 ', '', '   ']), isNull);
+      expect(open().identities, ['나는 운동하는 사람이다']);
+    });
+
+    test('0개가 기본 — 파일에 키 없음, 모두 비우면 키가 사라진다', () async {
+      final s = open();
+      await s.saveList([(null, '운동')], d(5));
+      expect(s.identities, isEmpty);
+      expect(file.readAsStringSync(), isNot(contains('identities')));
+      await s.saveIdentities(['나는 읽는 사람이다']);
+      expect(file.readAsStringSync(), contains('"identities":["나는 읽는 사람이다"]'));
+      await s.saveIdentities(['', '', '']);
+      expect(file.readAsStringSync(), isNot(contains('identities')));
+      expect(open().identities, isEmpty);
+    });
+
+    test('4개·41자·같은 문장(공백·대소문자만 다름)은 거부, 파일 그대로', () async {
+      final s = open();
+      await s.saveIdentities(['나는 Runner다']);
+      final before = file.readAsStringSync();
+      expect(await s.saveIdentities(['a', 'b', 'c', 'd']), '문장은 3개까지');
+      expect(await s.saveIdentities(['가' * 41]), '문장은 40자까지');
+      expect(await s.saveIdentities(['나는 Runner다', '나는runner 다']), '같은 문장이 있습니다');
+      expect(file.readAsStringSync(), before);
+      expect(s.identities, ['나는 Runner다']);
+      expect(await s.saveIdentities(['가' * 40]), isNull); // 경계: 40자는 된다
+      expect(await s.saveIdentities(['a', 'b', 'c']), isNull); // 경계: 3개는 된다
+      expect(open().identities, ['a', 'b', 'c']);
+    });
+
+    test('같은 목록을 다시 저장하면 쓰기 0', () async {
+      final s = open();
+      await s.saveIdentities(['나는 읽는 사람이다']);
+      file.setLastModifiedSync(DateTime(2020));
+      expect(await s.saveIdentities([' 나는 읽는 사람이다']), isNull);
+      expect(file.lastModifiedSync(), DateTime(2020));
+    });
+
+    test('정체성을 저장해도 계획 목록·체크는 그대로', () async {
+      final s = open();
+      await s.saveList([(null, '운동')], d(5));
+      await s.toggle(d(5), idOf(s, d(5), '운동'), d(5));
+      await s.saveIdentities(['나는 운동하는 사람이다']);
+      final r = open();
+      expect(titles(r.itemsOn(d(5))), ['운동']);
+      expect(r.summary(d(5)), (1, 1));
+    });
+
+    testWidgets('설정: 줄 요약 "선택 — 안 씀" → 편집 칸 3개에 써서 저장하면 요약이 그 문장 → 비우고 저장하면 다시 안 씀', (t) async {
+      final s = _Capture(tmp);
+      await t.pumpWidget(MaterialApp(home: Scaffold(body: PlanSettingsTile(store: s))));
+      expect(find.text('선택 — 안 씀'), findsOneWidget);
+      await t.tap(find.byKey(const ValueKey('identity-tile')));
+      await t.pumpAndSettle();
+      expect(find.byType(TextField), findsNWidgets(3));
+      await t.enterText(find.byKey(const ValueKey('identity-field-1')), '나는 읽는 사람이다');
+      await t.tap(find.byKey(const ValueKey('identity-save')));
+      await t.pumpAndSettle();
+      expect(s.savedIds.single, ['', '나는 읽는 사람이다', '']);
+      expect(find.text('나는 읽는 사람이다'), findsOneWidget); // 설정 줄 요약
+      await t.tap(find.byKey(const ValueKey('identity-tile')));
+      await t.pumpAndSettle();
+      await t.enterText(find.byKey(const ValueKey('identity-field-0')), '');
+      await t.tap(find.byKey(const ValueKey('identity-save')));
+      await t.pumpAndSettle();
+      expect(find.text('선택 — 안 씀'), findsOneWidget);
+    });
+
+    test('identities가 문자열 목록이 아니면 깨진 파일 — 저장 거부, 파일 그대로', () async {
+      file.writeAsStringSync('{"version":1,"next_id":1,"lists":[],"done":{},"identities":[3]}');
+      final before = file.readAsStringSync();
+      final s = open();
+      expect(s.broken, isTrue);
+      expect(await s.saveIdentities(['나는 읽는 사람이다']), isNotNull);
+      expect(file.readAsStringSync(), before);
     });
   });
 }

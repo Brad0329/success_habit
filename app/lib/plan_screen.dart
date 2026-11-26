@@ -216,6 +216,8 @@ class _PlanScreenState extends State<PlanScreen> with WidgetsBindingObserver {
             child: Text('계획 파일을 읽지 못했습니다 — 체크와 저장을 막아 두었습니다',
                 style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.error)),
           ),
+        // F-039 정체성 문장 — 0개면 칸째 없음(안 써도 되는 기능).
+        if (s.identities.isNotEmpty) _identityBox(theme),
         _calendar(theme),
         const SizedBox(height: 8),
         _legend(theme),
@@ -231,6 +233,18 @@ class _PlanScreenState extends State<PlanScreen> with WidgetsBindingObserver {
       ]),
     );
   }
+
+  /// F-039 달력 위 옅은 세이지색 칸에 정체성 문장 한 줄씩(길면 말줄임).
+  Widget _identityBox(ThemeData theme) => Container(
+        key: const ValueKey('identity-box'),
+        margin: const EdgeInsets.only(bottom: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(color: planDoColor.withAlpha(40), borderRadius: BorderRadius.circular(10)),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          for (final t in s.identities)
+            Text(t, maxLines: 1, overflow: TextOverflow.ellipsis, style: theme.textTheme.bodyMedium),
+        ]),
+      );
 
   Widget _calendar(ThemeData theme) {
     final first = _month;
