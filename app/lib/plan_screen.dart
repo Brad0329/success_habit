@@ -3,6 +3,7 @@
 /// F-026: 칸 위 = DO(파랑, 진해짐)·아래 = DON'T(빨강, 지킬수록 옅어져 다 지키면 색 없음), 한쪽만 있으면 칸 전체. 목록도 DO 위·DON'T 아래.
 /// F-031: 평일을 눌러 '휴일로 지정'(그날 주말 계획) — 휴일 날짜 숫자는 빨갛게. 쉬는 날의 보류된 평일 계획은 길게 눌러 그날만 풀기.
 /// F-024: 체크 목록 맨 아래 '하루 평가하기' 칸(자동 저장) + 평가를 쓴 날을 누르면 그 칸이 커진 말풍선(목업 '가', 2026-11-13).
+/// F-042: 오늘 목록에 '🔥 N일'(연속)·직전 놓침 강조(옅은 빨강 줄 + 문구), 두 번 연속 놓친 날은 달력 칸 오른쪽 위 빨간 점(목업 2026-11-26 "이대로").
 library;
 
 import 'dart:async';
@@ -12,6 +13,7 @@ import 'package:flutter/material.dart';
 import 'app_menu.dart';
 import 'log.dart';
 import 'plan_stats_screen.dart';
+import 'plan_streak.dart';
 import 'plans.dart';
 import 'weekday.dart';
 
@@ -44,6 +46,7 @@ class _PlanScreenState extends State<PlanScreen> with WidgetsBindingObserver {
   String? _reviewNote;
   bool _reviewError = false;
   DateTime? _bubble; // 말풍선을 띄운 날짜
+  PlanStreaks _streaks = PlanStreaks(const {}, const {}); // F-042 — build마다 다시 센다(체크·보류·휴일이 바꾼다)
 
   PlanStore get s => widget.store;
 
@@ -177,6 +180,7 @@ class _PlanScreenState extends State<PlanScreen> with WidgetsBindingObserver {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    _streaks = planStreaks(s, _today);
     return Scaffold(
       appBar: AppBar(title: const Text('계획'), actions: [
         IconButton(
@@ -383,10 +387,22 @@ class _PlanScreenState extends State<PlanScreen> with WidgetsBindingObserver {
                     : Colors.transparent,
           ),
         ),
-        child: ClipRRect(borderRadius: BorderRadius.circular(10), child: Column(children: halves)),
+        child: Stack(children: [
+          Positioned.fill(child: ClipRRect(borderRadius: BorderRadius.circular(10), child: Column(children: halves))),
+          if (_streaks.doubleMissDays.contains(dayKey(d)))
+            Positioned(top: 4, right: 4, child: _missDot(theme, key: ValueKey('miss-dot-${dayKey(d)}'))),
+        ]),
       ),
     );
   }
+
+  /// F-042 두 번 연속 놓친 날 점.
+  Widget _missDot(ThemeData theme, {Key? key}) => Container(
+        key: key,
+        width: 6,
+        height: 6,
+        decoration: BoxDecoration(color: theme.colorScheme.error, shape: BoxShape.circle),
+      );
 
   /// 칸의 한쪽 — [kind]가 null이면 계획 없는 날·미래(날짜만).
   Widget _half(ThemeData theme, DateTime d, PlanKind? kind, {required bool showDay}) {
@@ -446,6 +462,11 @@ class _PlanScreenState extends State<PlanScreen> with WidgetsBindingObserver {
         chip(null, '다 지킴'),
       ]),
       Text('0/N 안 함 · 미래는 표시 없음', style: small?.copyWith(color: theme.colorScheme.outline)),
+      Row(mainAxisSize: MainAxisSize.min, children: [
+        _missDot(theme),
+        const SizedBox(width: 4),
+        Text('어떤 계획을 두 번 연속 놓친 날', style: small?.copyWith(color: theme.colorScheme.outline)),
+      ]),
     ]);
   }
 
@@ -489,7 +510,11 @@ class _PlanScreenState extends State<PlanScreen> with WidgetsBindingObserver {
           ),
           for (final it in items)
             if (it.kind == k)
-              _planTile(theme, it, future: future, done: done.contains(it.id), held: held.contains(it.id)),
+              _planTile(theme, it,
+                  future: future,
+                  done: done.contains(it.id),
+                  held: held.contains(it.id),
+                  streak: _sel == _today ? _streaks.today[it.id] : null),
         ],
       if (future && items != null && items.isNotEmpty)
         Text('미래 날짜는 보기만 합니다. 그날이 되면 체크할 수 있습니다.', style: theme.textTheme.bodySmall)
@@ -513,13 +538,19 @@ class _PlanScreenState extends State<PlanScreen> with WidgetsBindingObserver {
   }
 
   /// 그날 목록 한 줄. F-025 길게 누르면 보류 ↔ 해제 — 보류한 항목은 흐리게 · 체크 칸 꺼짐.
-  Widget _planTile(ThemeData theme, PlanItem it, {required bool future, required bool done, required bool held}) {
+  /// F-042 [streak]은 오늘 해야 하는 항목만(그 밖엔 null) — 연속 1 이상이면 '🔥 N일', 직전 놓침이면 옅은 빨강 줄 + 문구.
+  Widget _planTile(ThemeData theme, PlanItem it,
+      {required bool future, required bool done, required bool held, PlanStreak? streak}) {
     final dim = theme.colorScheme.outline;
+    final warn = (streak?.misses ?? 0) > 0;
     return GestureDetector(
       key: ValueKey('plan-${it.id}'),
       onLongPress: future || s.broken ? null : () => _hold(it),
       child: CheckboxListTile(
-        contentPadding: EdgeInsets.zero,
+        contentPadding: warn ? const EdgeInsets.symmetric(horizontal: 4) : EdgeInsets.zero,
+        tileColor: warn ? theme.colorScheme.errorContainer : null,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        subtitle: _missText(theme, it, streak),
         controlAffinity: ListTileControlAffinity.leading,
         value: !future && done,
         onChanged: future || s.broken || held ? null : (_) => _toggle(it),
@@ -531,9 +562,24 @@ class _PlanScreenState extends State<PlanScreen> with WidgetsBindingObserver {
                   ? TextStyle(color: dim)
                   : null,
         ),
-        secondary: held ? Text('보류', style: theme.textTheme.labelSmall?.copyWith(color: dim)) : null,
+        secondary: held ? Text('보류', style: theme.textTheme.labelSmall?.copyWith(color: dim)) : _fire(theme, it, streak),
       ),
     );
+  }
+
+  /// F-042 직전 놓침 문구 — 1회 '어제 놓침 — 오늘은 꼭', 2회 이상 'N회 연속 놓침', 없으면 null.
+  Widget? _missText(ThemeData theme, PlanItem it, PlanStreak? streak) {
+    final n = streak?.misses ?? 0;
+    if (n == 0) return null;
+    return Text(n == 1 ? '어제 놓침 — 오늘은 꼭' : '$n회 연속 놓침',
+        key: ValueKey('miss-${it.id}'),
+        style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onErrorContainer));
+  }
+
+  /// F-042 연속 1일 이상이면 '🔥 N일', 아니면 null.
+  Widget? _fire(ThemeData theme, PlanItem it, PlanStreak? streak) {
+    final n = streak?.streak ?? 0;
+    return n > 0 ? Text('🔥 $n일', key: ValueKey('streak-${it.id}'), style: theme.textTheme.labelSmall) : null;
   }
 
   List<Widget> _reviewBox(ThemeData theme) => [

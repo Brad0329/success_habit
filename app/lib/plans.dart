@@ -247,6 +247,12 @@ class PlanStore extends ChangeNotifier {
     return k.compareTo(from) >= 0 && k.compareTo(dayKey(now())) <= 0;
   }
 
+  /// F-042 그날이 DON'T 기본 지킴 날인가 — 그날 안 지킴이면 놓침이 확정된다(오늘이라도).
+  bool dontDefaultOn(DateTime day) => _dontDefaultOn(day);
+
+  /// F-042 첫 목록이 시작하는 날. 목록이 없거나 깨진 파일이면 null.
+  DateTime? get firstDay => _versions.isEmpty ? null : DateTime.parse(_versions.first.from);
+
   /// F-026 바뀜 기본 지킴으로 세는 DON'T인가(새 규칙 날의 DON'T — 미래 포함, 체크는 미래에 막혀 있다).
   bool _isDefaultDont(DateTime day, String id) {
     final from = _dontFrom;

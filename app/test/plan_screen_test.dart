@@ -58,8 +58,15 @@ class _Store extends PlanStore {
   @override
   List<PlanItem> get current => items;
 
+  // F-042 연속 — 첫 목록 날과 날마다 한 항목만 메모리에(둘 다 비면 연속 계산 0건 — 다른 테스트는 그대로).
+  DateTime? first;
+  final doneDays = <String, Set<String>>{};
+
   @override
-  Set<String> doneOn(DateTime day) => const {};
+  DateTime? get firstDay => first;
+
+  @override
+  Set<String> doneOn(DateTime day) => doneDays[dayKey(day)] ?? const {};
 
   @override
   Set<String> heldOn(DateTime day) => Set.of(_held);
@@ -100,6 +107,33 @@ void main() {
     // 11-01~13 평일 9일 — 운동은 평일 목록에도, 쉬는 날 목록에도 있어 13일 모두 해야 한 날.
     expect(find.text('0 / 13일'), findsOneWidget);
     expect(find.text('회사'), findsOneWidget);
+  });
+
+  testWidgets('F-042 오늘 목록에 🔥 연속·놓침 문구, 두 번 연속 놓친 날 달력 점 / 다른 날을 고르면 목록 표시 0', (t) async {
+    final s = _Store(tmp)
+      ..first = d(10)
+      ..doneDays.addAll({
+        '2026-11-10': {'p1', 'p2', 'p3'},
+        '2026-11-11': {'p1', 'p3'},
+        '2026-11-12': {'p1', 'p3'},
+      });
+    t.view.physicalSize = const Size(800, 2400);
+    t.view.devicePixelRatio = 1;
+    addTearDown(t.view.reset);
+    await t.pumpWidget(MaterialApp(home: PlanScreen(store: s, now: () => DateTime(2026, 11, 13, 21, 4))));
+    await t.pump();
+    // 오늘 11-13 아직: 운동·야식 3일 연속 / 회사는 11·12 놓침 → 2회 연속 놓침, 12일 칸에 점
+    expect(find.textContaining('🔥'), findsNWidgets(2));
+    expect((t.widget<Text>(find.byKey(const ValueKey('streak-p1')))).data, '🔥 3일');
+    expect((t.widget<Text>(find.byKey(const ValueKey('miss-p2')))).data, '2회 연속 놓침');
+    expect(find.byKey(const ValueKey('miss-p1')), findsNothing);
+    expect(find.byKey(const ValueKey('miss-dot-2026-11-12')), findsOneWidget);
+    expect(find.byKey(const ValueKey('miss-dot-2026-11-11')), findsNothing);
+    await t.tap(day(12));
+    await t.pump();
+    expect(find.textContaining('🔥'), findsNothing);
+    expect(find.byKey(const ValueKey('miss-p2')), findsNothing);
+    expect(find.byKey(const ValueKey('miss-dot-2026-11-12')), findsOneWidget);
   });
 
   testWidgets('쓰고 1초 지나면 저장, 그 전엔 저장 안 함', (t) async {
