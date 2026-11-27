@@ -46,7 +46,8 @@
     — 2026-11-27 완료(사용자 결정 "묶기 허용 안 함"): `commit_mutation_check` PreToolUse 훅이 테스트 파일이 든 커밋의 메시지를 보고 막는다(경고 대신 막음 — 커밋 뒤면 amend가 생긴다)
   - [x] A4 `session_context.py`가 `Phase N` 없는 미완료 줄을 못 세고(“6/6 완료”로 주입), 실테스트 '확인함' 기록까지 대기로 세며 F-102 남은 항목을 자른다
     — 2026-11-27 완료: 최상위 체크 줄 전부 셈 · `**확인함**`(‘남은 것’ 없음)은 빼고 건수만 알림 · 대기 항목은 이어지는 줄까지
-  - [ ] B1~B3 위젯 계약 대조 넓히기 — `dayKey` 형식 ↔ Kotlin `SimpleDateFormat`, 채널 이름·`filesDir`, 키별 값 타입
+  - [x] B1~B3 위젯 계약 대조 넓히기 — `dayKey` 형식 ↔ Kotlin `SimpleDateFormat`, 채널 이름·`filesDir`, 키별 값 타입
+    — 2026-11-27 완료(`widget_contract_test` 3건). 기존 `widget_summary_test`는 pct가 소수여도 통과한다(50.0 == 50) — 타입은 계약 테스트만 잡는다
   - [ ] B4·B5 상한이 글자·이름 없는 숫자로 박힌 곳 — 도움말 "30개·40자·3개"(`help_screen.dart:27`·`:47`), 최근 30일(`plan_stats.dart:146`), '2회 연속'(`plan_streak.dart:85`), `trendMonths`(보류 항목과 같은 건)
   - [ ] B6·B7 % 반올림 세 벌(`delta`가 화면 %와 같다는 전제), '해야 한 날' 판정 두 벌(연속·통계) — 하나로 모으거나 대조 테스트
   - [ ] B8·B9 승인 기록 쓰는 쪽·읽는 쪽 이름·키·루트 경로 따로(`log_permission_request.py` ↔ `measure_approvals.py`), JSONL 깨진 줄을 건수 없이 버림(`measure_wait.py:77`·`measure_approvals.py:288`)
