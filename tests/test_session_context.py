@@ -139,6 +139,32 @@ def test_확인함_기록은_대기로_세지_않고_뺀_건수를_알린다(tmp
     assert "F-2 도움말" not in text
 
 
+CHECKS = """# 전체 계획
+
+## Phase 체크리스트
+- [ ] Phase 001: 코어
+
+## 사용자 실테스트 대기
+- [A1 위젯] 체크 상자로 물음 **확인함**
+  - [x] ① 체크 → 홈 → 숫자 바뀜
+  - [ ] ② 보류 → 홈 → 전체 수 줄어듦
+- [A2 도움말] 체크 상자로 물음
+  - [x] ① 글 모양
+  - [X] ② 다크 모드
+- [A3 통계] 아직 안 물음
+  - [ ] ① 막대
+"""
+
+
+def test_하위_체크가_남은_항목은_확인함이어도_대기다(tmp_path):
+    # Phase 007 A2(2026-11-27 사용자 결정): 체크 상자로 항목마다 답 — `[ ]` 하나라도 남으면 대기.
+    text = build_context(_project(tmp_path, plan=CHECKS))
+    assert "사용자 실테스트 대기 2건" in text          # A1(② 남음)·A3
+    assert "② 보류 → 홈 → 전체 수 줄어듦" in text
+    assert "A2 도움말" not in text                      # 하위 체크 전부 [x] = 확인 기록(확인함 표시 없어도)
+    assert "확인함 기록 1건" in text
+
+
 def test_대기_항목은_이어지는_줄까지_싣는다(tmp_path):
     text = build_context(_project(tmp_path, plan=WAITING))
     assert "남은 것: 다음 날 아침 모양" in text          # 둘째 줄 — 첫 줄만 실으면 잘린다

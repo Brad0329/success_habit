@@ -11,7 +11,8 @@ r"""세션이 시작될 때 plan.md의 현재 Phase·인계 건수·실테스트
     것을 대신한다: 로그는 "그 번호의 Phase"에서만 가리켜져 다음 Phase 세션이 못 받았다(템플릿 실프로젝트
     실측, 6개 중 3개가 한 번도 안 읽혔다). plan.md는 매 세션 읽히므로 인계를 거기 둔다.
   - '사용자 실테스트 대기' 절의 항목(플레이스홀더 `<...>` 제외) — 들여 쓴 이어지는 줄까지 통째로('남은 것'이
-    둘째 줄에 있기도 하다). `**확인함**` 기록(‘남은 것’ 없음)은 대기로 세지 않고 뺀 건수만 알린다
+    둘째 줄에 있기도 하다). 확인 기록은 대기로 세지 않고 뺀 건수만 알린다 — 하위 체크 줄(`  - [x]`)이 있으면
+    전부 `[x]`일 때, 없으면(옛 기록) `**확인함**`이 있을 때. '남은 것'이 있으면 언제나 대기
   - 원격이 있는데 어느 원격에도 안 올라간 커밋이 있으면 그 개수(PC 고장·분실 시 사라지는 몫).
     **원격이 없으면 아무 말도 하지 않는다** — 원격을 안 두는 것은 초기화 때 사용자가 고른 것이라
     매 세션 되물으면 잔소리가 된다. fetch는 하지 않는다(네트워크 없이 로컬 추적 정보만 본다).
@@ -41,6 +42,7 @@ INIT_MARKER = "템플릿 초기화 모드"
 PHASE_LINE = re.compile(r"^- \[( |x|X)\] (.*)$")
 CONFIRMED = "**확인함**"  # 실테스트 대기 절의 '확인 기록' 표시 — '남은 것'이 함께 있으면 아직 대기
 REMAINING = "남은 것"
+SUB_CHECK = re.compile(r"^\s+- \[( |x|X)\]")  # 실테스트 항목의 하위 체크 줄(체크 상자로 받은 답)
 HEADING = re.compile(r"^## +(.*)$")
 
 
@@ -75,9 +77,16 @@ def _items(lines: list[str], title_part: str) -> list[list[str]]:
 
 
 def _confirmed(item: list[str]) -> bool:
-    """확인 기록만 남은 항목인가 — `**확인함**`이 있고 '남은 것'이 없을 때."""
+    """확인 기록만 남은 항목인가. '남은 것'이 있으면 대기.
+    하위 체크 줄(`  - [ ]`/`  - [x]`, Phase 007 A2 체크 상자 형식)이 있으면 전부 `[x]`일 때만 확인.
+    없으면(옛 기록) `**확인함**`이 있을 때."""
     text = "\n".join(item)
-    return CONFIRMED in text and REMAINING not in text
+    if REMAINING in text:
+        return False
+    checks = [m.group(1) for m in (SUB_CHECK.match(l) for l in item[1:]) if m]
+    if checks:
+        return all(c in "xX" for c in checks)
+    return CONFIRMED in text
 
 
 def _git(root: Path, *args: str) -> str | None:
