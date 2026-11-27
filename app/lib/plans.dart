@@ -18,6 +18,7 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart' show ChangeNotifier;
 
+import 'app_paths.dart' show planFileName, reviewFileName;
 import 'atomic_file.dart';
 import 'log.dart';
 
@@ -132,7 +133,7 @@ class PlanStore extends ChangeNotifier {
   String? _dontFrom;
   final _missed = <String, Set<String>>{}; // 날짜 → 어긴 DON'T id(새 규칙 날만)
 
-  File get _file => File('${dir.path}/plans.json');
+  File get _file => File('${dir.path}/$planFileName');
 
   final _versions = <_Version>[];
   final _done = <String, Set<String>>{};
@@ -586,7 +587,7 @@ class PlanStore extends ChangeNotifier {
   }
 
   // ---- F-024 하루 평가 — 계획과 따로 `reviews.json`(계획 파일 형식은 그대로) ----------------
-  File get _reviewFile => File('${dir.path}/reviews.json');
+  File get _reviewFile => File('${dir.path}/$reviewFileName');
   final _reviews = <String, String>{};
   var _reviewsLoaded = false;
 

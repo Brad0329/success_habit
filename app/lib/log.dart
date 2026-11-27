@@ -7,13 +7,15 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 
+import 'app_paths.dart' show logFileName;
+
 const _maxBytes = 1024 * 1024;
 
 File? _file;
 
 /// 앱 시작 때 한 번. 부르기 전의 로그는 콘솔에만 간다.
 void initLog(Directory dir) {
-  final f = File('${dir.path}/chaerok.log');
+  final f = File('${dir.path}/$logFileName');
   try {
     if (f.existsSync() && f.lengthSync() > _maxBytes) {
       f.renameSync('${f.path}.1');
