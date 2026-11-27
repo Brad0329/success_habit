@@ -72,6 +72,18 @@ def add_context(event_name: str, text: str) -> None:
     }))
 
 
+def warn(text: str) -> None:
+    """PreToolUse에서 막지 않고 경고만 — 결정(permissionDecision)을 내지 않아 도구는 그대로 돈다.
+    사용자에게는 `systemMessage`, AI에게는 `additionalContext`로 같은 글이 간다. `deny`와 같은 이유로 ASCII로만 나간다."""
+    print(json.dumps({
+        "systemMessage": text,
+        "hookSpecificOutput": {
+            "hookEventName": "PreToolUse",
+            "additionalContext": text,
+        },
+    }))
+
+
 def deny(reason: str) -> None:
     """PreToolUse deny 결정을 stdout으로 낸다.
 

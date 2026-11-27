@@ -1,4 +1,4 @@
-r"""테스트를 넣거나 고친 커밋에 변이 확인 결과가 없거나 변이를 묶었으면 커밋을 막는다 (PreToolUse 훅, Phase 007 A3).
+r"""테스트를 넣거나 고친 커밋에 변이 확인 결과가 없거나 변이를 묶었으면 경고한다 — 막지 않는다 (PreToolUse 훅, Phase 007 A3).
 
 **왜 훅인가**: CLAUDE.md '검증 원칙'은 "새로 넣거나 고친 테스트는 대상 코드를 일부러 틀리게 만들어 실패를 한 번 본다
 (한 번에 하나씩)"인데, 문장으로만 있어 4번 어겼다 — 생략(b34de40·3ef0ada: 이유를 붙여 건너뜀),
@@ -11,13 +11,14 @@ r"""테스트를 넣거나 고친 커밋에 변이 확인 결과가 없거나 �
   - 정당한 예외(테스트를 지우기만 함, 기존 단언의 기대값만 바꿈)는 `변이 확인 해당 없음: <이유>` 한 줄로 통과
   버그 수정의 재현 테스트는 첫 실패가 변이를 겸한다 — "변이 확인: 재현 테스트 첫 실패로 겸함" 처럼 적는다.
 
-**경고가 아니라 막는 이유**: 커밋 뒤에 알리면 메시지를 고치려고 amend·추가 커밋이 생긴다. 커밋 전에 막으면
-메시지 파일만 고쳐 다시 부르면 된다(빠진 변이 확인을 그 사이에 하면 된다).
+**막지 않고 경고만 하는 이유**(2026-11-27 사용자 결정 "경고만 하게" — 처음엔 막았다): 커밋은 그대로 진행되고,
+사용자(systemMessage)와 AI(additionalContext)에게 같은 경고가 간다. 경고를 받은 AI는 빠진 변이 확인을 하고
+결과를 다음 커밋 메시지에 적는다(기록을 남기는 몫은 AI에게 있다 — 조용히 넘기지 않는다).
 
 **커밋에 드는 파일** = 이미 올린 것(`git diff --cached`) + 같은 명령 앞쪽 `git add`의 경로 — 훅은 그 `git add`보다 먼저 돈다.
 메시지는 `-F <파일>`(이 저장소의 표준, 팩_Windows_PowerShell.md) 또는 `-m "…"`에서 읽는다. 둘 다 아니면(amend --no-edit 등) 보지 않는다.
 
-**훅이 고장 나면 막지 않고 통과시킨다**(이유는 stderr) — 훅 결함이 커밋을 봉쇄하면 안 된다.
+**훅이 고장 나면 경고 없이 통과시킨다**(이유는 stderr) — 경고가 안 나왔다고 규칙을 지킨 것은 아니다.
 """
 
 from __future__ import annotations
@@ -29,7 +30,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from hook_io import deny, read_command
+from hook_io import read_command, warn
 
 ROOT = Path(os.environ.get("CLAUDE_PROJECT_DIR") or Path(__file__).resolve().parents[2])
 
@@ -45,10 +46,11 @@ SKIP = re.compile(r"하지 않았다|안 했다|생략|넣지 않았다|돌리�
 BUNDLE = re.compile(r"묶(?:었|어|고|기|는다)|한 실행에|한 번에(?!\s*하나씩)")
 
 REASON_HEAD = (
-    "커밋에 테스트 파일이 들어가는데 메시지의 변이 확인이 규칙(CLAUDE.md '검증 원칙' — 한 번에 하나씩, 실패를 본다)과 다르다:\n"
+    "[경고 — 커밋은 막지 않았다] 커밋에 테스트 파일이 들어가는데 메시지의 변이 확인이 규칙"
+    "(CLAUDE.md '검증 원칙' — 한 번에 하나씩, 실패를 본다)과 다르다:\n"
 )
 REASON_TAIL = (
-    "\n→ 빠진 변이 확인을 하나씩 하고 결과(무엇을 틀리게 했고 어느 테스트가 실패했나)를 메시지에 적은 뒤 다시 커밋한다.\n"
+    "\n→ 빠진 변이 확인을 하나씩 하고 결과(무엇을 틀리게 했고 어느 테스트가 실패했나)를 다음 커밋 메시지에 적는다.\n"
     "  버그 수정 재현 테스트는 '변이 확인: 재현 테스트 첫 실패로 겸함'. 테스트를 지우기만 했거나 기존 단언의 기대값만 바꿨으면\n"
     "  '변이 확인 해당 없음: <이유>' 한 줄. 묶기 예외는 없다(2026-11-27 사용자 결정)."
 )
@@ -132,7 +134,7 @@ def main() -> int:
         print(f"commit_mutation_check: 검사하지 못해 통과시킨다 ({e})", file=sys.stderr)
         return 0
     if found:
-        deny(REASON_HEAD + "\n".join(f"  - {p}" for p in found) + REASON_TAIL)
+        warn(REASON_HEAD + "\n".join(f"  - {p}" for p in found) + REASON_TAIL)
     return 0
 
 

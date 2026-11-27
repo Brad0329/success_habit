@@ -106,7 +106,9 @@ def test_settings_json에_등록돼_있다():
     assert any("commit_mutation_check.py" in c for c in commands)
 
 
-def test_cp949_콘솔에서도_막는_결정이_ASCII로_나간다(tmp_path):
+def test_cp949_콘솔에서도_경고가_ASCII로_나가고_커밋은_막지_않는다(tmp_path):
+    # 2026-11-27 사용자 결정 "경고만 하게" — permissionDecision을 내지 않아 커밋은 그대로 진행되고,
+    # 사용자(systemMessage)와 AI(additionalContext)에게 같은 경고가 간다.
     # 실제 git 저장소에서 테스트 파일을 올리고 변이 결과 없는 메시지로 커밋하려 한다.
     subprocess.run(["git", "init"], cwd=tmp_path, check=True, capture_output=True)
     (tmp_path / "tests").mkdir()
@@ -122,4 +124,7 @@ def test_cp949_콘솔에서도_막는_결정이_ASCII로_나간다(tmp_path):
     )
     assert p.returncode == 0, p.stderr
     assert p.stdout.isascii()
-    assert json.loads(p.stdout)["hookSpecificOutput"]["permissionDecision"] == "deny"
+    out = json.loads(p.stdout)
+    assert "permissionDecision" not in out["hookSpecificOutput"]
+    assert "결과가 없다" in out["hookSpecificOutput"]["additionalContext"]
+    assert "결과가 없다" in out["systemMessage"]
