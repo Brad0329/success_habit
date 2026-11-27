@@ -29,9 +29,9 @@ enum _Mark { ok, miss, pending }
 
 DateTime _day(DateTime d) => DateTime(d.year, d.month, d.day);
 
-/// 그날 그 항목의 판정 — 해야 한 날이 아니면(보류·쉬는 날 기본 보류) null.
-_Mark? _mark(PlanStore store, DateTime d, PlanItem i, Set<String> held, Set<String> done, bool isToday) {
-  if (held.contains(i.id)) return null;
+/// 그날 그 항목의 판정 — 해야 한 날([PlanStore.dueOn])이 아니면 null.
+_Mark? _mark(PlanStore store, DateTime d, PlanItem i, Set<String> due, Set<String> done, bool isToday) {
+  if (!due.contains(i.id)) return null;
   if (done.contains(i.id)) return _Mark.ok;
   if (!isToday || (i.kind == PlanKind.dont && store.dontDefaultOn(d))) return _Mark.miss;
   return _Mark.pending;
@@ -46,11 +46,11 @@ void _walk(PlanStore store, DateTime from, DateTime to, DateTime today,
   for (var d = _day(from); !d.isAfter(end); d = DateTime(d.year, d.month, d.day + 1)) {
     final items = store.itemsOn(d);
     if (items == null) continue;
-    final held = store.heldOn(d);
+    final due = store.dueOn(d);
     final done = store.doneOn(d);
     final isToday = d == t;
     for (final i in items) {
-      final m = _mark(store, d, i, held, done, isToday);
+      final m = _mark(store, d, i, due, done, isToday);
       if (m == null) continue;
       onDay(d, i, m, runs.putIfAbsent(i.id, _Run.new), isToday);
     }

@@ -83,7 +83,7 @@ class _PlanStatsScreenState extends State<PlanStatsScreen> {
 
   static String _ymd(DateTime d) => dayKey(d);
   static String _md(DateTime d) => '${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
-  static String _pct((int, int) v) => v.$2 == 0 ? '—' : '${(v.$1 * 100 / v.$2).round()}%';
+  static String _pct((int, int) v) => v.$2 == 0 ? '—' : '${ratePct(v.$1 / v.$2)}%';
 
   @override
   Widget build(BuildContext context) {
@@ -289,7 +289,7 @@ class _PlanStatsScreenState extends State<PlanStatsScreen> {
     );
   }
 
-  static String _rate(double? r) => r == null ? '—' : '${(r * 100).round()}%';
+  static String _rate(double? r) => r == null ? '—' : '${ratePct(r)}%';
 
   /// 지난달 대비 ▲ 세이지 / ▼ 빨강 / ± 0 흐림 — 비교할 수 없으면 빈 칸.
   Widget _delta(ThemeData theme, PlanItem item, int? d) {

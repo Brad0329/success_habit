@@ -44,6 +44,12 @@ class PlanStats {
 
 DateTime _day(DateTime d) => DateTime(d.year, d.month, d.day);
 
+/// 비율(0~1) → 화면·위젯의 %(정수). % 를 만드는 반올림은 이것 하나뿐이다(one_rule_test) — 통계 합계·항목·달별 추이·▲▼·위젯 막대가
+/// 같은 수에서 같은 %를 보이고, ▲▼(delta)는 화면에 보인 % 끼리의 차가 된다.
+/// 1e-9를 더하는 이유: 0.145 * 100 = 14.4999…처럼 부동소수 오차로 x.5가 내림되는 것을 막는다(실제 비율이 x.5에서 1e-9 안쪽인 경우는 없다 —
+/// 분모가 날 수·항목 수라 작다).
+int ratePct(double rate) => (rate * 100 + 1e-9).round();
+
 /// [from]~[to](둘 다 포함)를 [today]까지로 잘라 센다. 계획 없는 날은 건너뛴다.
 PlanStats planStats(PlanStore store, DateTime from, DateTime to, DateTime today) {
   final start = _day(from);
@@ -55,16 +61,16 @@ PlanStats planStats(PlanStore store, DateTime from, DateTime to, DateTime today)
     final items = store.itemsOn(d);
     if (items == null) continue;
     final rest = store.restHeldOn(d);
-    final held = store.heldOn(d);
+    final due = store.dueOn(d);
     final done = store.doneOn(d);
     for (final i in items) {
-      if (rest.contains(i.id)) continue;
+      if (rest.contains(i.id)) continue; // 쉬는 날 기본 보류 — 해야 한 날도 보류한 날도 아니다
       final s = byId.putIfAbsent(i.id, () => PlanStat(i))..item = i;
-      if (held.contains(i.id)) {
-        s.held++;
-      } else {
+      if (due.contains(i.id)) {
         s.due++;
         if (done.contains(i.id)) s.done++;
+      } else {
+        s.held++;
       }
     }
   }
@@ -103,7 +109,7 @@ class PlanTrend {
   int? delta(String id) {
     final r = rates[id];
     if (r == null || r.length < 2 || r[r.length - 1] == null || r[r.length - 2] == null) return null;
-    return (r.last! * 100).round() - (r[r.length - 2]! * 100).round();
+    return ratePct(r.last!) - ratePct(r[r.length - 2]!);
   }
 }
 

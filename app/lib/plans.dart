@@ -303,6 +303,15 @@ class PlanStore extends ChangeNotifier {
     return _onList(day, _held).union(_defaultHeldOn(day).difference(released));
   }
 
+  /// 그날 '해야 한 날'인 항목 id — 목록에 있고 보류(직접 보류·쉬는 날 기본 보류 중 안 푼 것)가 아닌 것. 계획 없는 날은 빈 집합.
+  /// 연속(F-042·F-043)과 통계(F-037)가 이것 하나로 판정한다(Phase 007 B7, one_rule_test).
+  Set<String> dueOn(DateTime day) {
+    final items = itemsOn(day);
+    if (items == null) return const {};
+    final held = heldOn(day);
+    return {for (final i in items) if (!held.contains(i.id)) i.id};
+  }
+
   /// F-037 쉬는 날 기본 보류로 남아 있는 평일 계획 id(그날 푼 것은 뺀다) — 통계는 이것을 해야 한 날·보류 어느 쪽에도 안 센다.
   Set<String> restHeldOn(DateTime day) =>
       _defaultHeldOn(day).difference(_released[dayKey(day)] ?? const <String>{});

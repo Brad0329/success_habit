@@ -11,6 +11,7 @@ import 'package:flutter/widgets.dart';
 
 import 'atomic_file.dart';
 import 'log.dart';
+import 'plan_stats.dart' show ratePct;
 import 'plan_streak.dart';
 import 'plans.dart';
 
@@ -60,7 +61,7 @@ Map<String, Object?>? _part((int, int)? sum) {
   if (sum == null) return null;
   final (done, total) = sum;
   if (total == 0) return null;
-  return {'label': '$done/$total', 'pct': (done * 100 / total).round()};
+  return {'label': '$done/$total', 'pct': ratePct(done / total)};
 }
 
 /// 저장소가 알릴 때·앱이 다시 앞으로 올 때 요약을 다시 쓰고 위젯을 다시 그리게 한다. 같은 내용이면 쓰기 0.

@@ -51,7 +51,8 @@
   - [x] B4·B5 상한이 글자·이름 없는 숫자로 박힌 곳 — 도움말 "30개·40자·3개"(`help_screen.dart:27`·`:47`), 최근 30일(`plan_stats.dart:146`), '2회 연속'(`plan_streak.dart:85`), `trendMonths`(보류 항목과 같은 건)
     — 2026-11-27 완료: 도움말은 상수로 글을 만듦(보이는 글 그대로), `recentDays`·`missRunMark` 이름, `trendMonths`→`maxTrendMonths` 등록부+경계 테스트.
     남긴 것: 도움말 "두 번 연속"(낱말이라 상수로 못 만듦 — `missRunMark`를 바꾸면 손으로)
-  - [ ] B6·B7 % 반올림 세 벌(`delta`가 화면 %와 같다는 전제), '해야 한 날' 판정 두 벌(연속·통계) — 하나로 모으거나 대조 테스트
+  - [x] B6·B7 % 반올림 세 벌(`delta`가 화면 %와 같다는 전제), '해야 한 날' 판정 두 벌(연속·통계) — 하나로 모으거나 대조 테스트
+    — 2026-11-27 완료: % 는 `ratePct` 하나(부동소수 x.5 내림 보정), 해야 한 날은 `PlanStore.dueOn` 하나 — `one_rule_test`가 다시 갈라지면 잡는다
   - [ ] B8·B9 승인 기록 쓰는 쪽·읽는 쪽 이름·키·루트 경로 따로(`log_permission_request.py` ↔ `measure_approvals.py`), JSONL 깨진 줄을 건수 없이 버림(`measure_wait.py:77`·`measure_approvals.py:288`)
   - [ ] B10 저장 파일 이름(`plans.json`·`reviews.json`·`chaerok.log`)을 `AppPaths` 밖에서 조합 — 이름은 안 바꾸고 옮기기만. **기본 구조②에 닿을 수 있어 착수 전 사용자 확인**
   - [ ] B11 복사된 작은 함수(하루로 자르기 5벌·일요일 시작 주 3벌·미래 날짜 판정 2층·날짜 글 Dart 2벌) 합치기. 훅 `main()` 6벌은 둔다
