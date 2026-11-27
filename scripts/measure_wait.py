@@ -65,6 +65,7 @@ def measure(paths: list[Path]) -> list[tuple[float, str, str]]:
     """[(초, 도구, 명령)] — tool_use와 짝 tool_result의 간격."""
     pending: dict[str, tuple[str, str, str]] = {}
     rows: list[tuple[float, str, str]] = []
+    bad = 0
     for path in paths:
         for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
             if not line.strip():
@@ -73,7 +74,8 @@ def measure(paths: list[Path]) -> list[tuple[float, str, str]]:
                 ev = json.loads(line)
             except json.JSONDecodeError:
                 # 트랜스크립트가 쓰이는 중이면 마지막 줄이 잘려 있을 수 있다.
-                # 그 한 줄만 버리고 계속한다.
+                # 그 한 줄만 버리고 계속한다 — 버린 건수는 끝에서 알린다(조용한 절단 금지).
+                bad += 1
                 continue
             content = (ev.get("message") or {}).get("content")
             if not isinstance(content, list):
@@ -97,6 +99,8 @@ def measure(paths: list[Path]) -> list[tuple[float, str, str]]:
                         ts.replace("Z", "+00:00")
                     ) - datetime.fromisoformat(t0.replace("Z", "+00:00"))
                     rows.append((delta.total_seconds(), tool, cmd))
+    if bad:
+        print(f"  (트랜스크립트에서 깨진 줄 {bad}개를 건너뛰었다)", file=sys.stderr)
     return rows
 
 

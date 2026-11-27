@@ -179,7 +179,39 @@ def test_서브에이전트_기록까지_합쳐_센다(tmp_path, monkeypatch):
     assert find_sessions("s1", 1) == paths               # 세션 ID로 골라도 같다
 
 
+def test_셸_호출을_셀_때_깨진_줄은_건수로_알린다(tmp_path, capsys):
+    """Phase 007 B9: 잘린 줄을 건수 없이 버렸다(조용한 절단)."""
+    p = tmp_path / "s.jsonl"
+    p.write_text(_tool_use("git status") + '\n{"message": {"cont', encoding="utf-8")
+    assert [c for _, c in shell_calls([p])] == ["git status"]
+    assert "깨진 줄 1개" in capsys.readouterr().err
+
+
 # ── ⑦ 승인 창 실측 기록 ─────────────────────────────────────────────────────
+
+
+def test_승인_기록_파일_이름과_루트는_훅에서_가져온다():
+    """Phase 007 B8: 쓰는 쪽(log_permission_request 훅)과 읽는 쪽(측정기)이 이름·루트를 따로 적었다."""
+    import measure_approvals
+    hooks = Path(__file__).resolve().parent.parent / ".claude" / "hooks"
+    sys.path.insert(0, str(hooks))
+    from log_permission_request import LOG_NAME, project_root
+    assert measure_approvals.PERMISSION_LOG == project_root() / ".claude" / LOG_NAME
+    src = (Path(measure_approvals.__file__)).read_text(encoding="utf-8")
+    assert f'"{LOG_NAME}"' not in src, "측정기 코드에 파일 이름을 다시 적지 말 것 — 훅의 LOG_NAME을 쓴다(머리말 설명은 괜찮다)"
+
+
+def test_측정기가_읽는_키는_모두_훅이_쓰는_키다():
+    """Phase 007 B8: 측정기가 읽는 키를 훅이 안 쓰면 [실측] 절이 조용히 '?'·0건이 된다."""
+    import re
+    import measure_approvals
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent / ".claude" / "hooks"))
+    from log_permission_request import record
+    src = Path(measure_approvals.__file__).read_text(encoding="utf-8")
+    body = src[src.index("def load_permission_log"):src.index("def print_sessions")]
+    read = set(re.findall(r'\b(?:rec|r|rs\[-1\])\.get\("(\w+)"', body))
+    assert len(read) >= 4, read
+    assert read <= set(record({})), read - set(record({}))
 
 def test_실측_기록은_고른_세션_것만_읽는다(tmp_path):
     log = tmp_path / "permission_requests.jsonl"

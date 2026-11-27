@@ -205,7 +205,11 @@ def find_sessions(spec: str | None, count: int) -> list[Path]:
     return with_subagents(files[:count])
 
 
-PERMISSION_LOG = ROOT / ".claude" / "permission_requests.jsonl"
+# 쓰는 쪽(log_permission_request 훅)의 이름·루트를 그대로 쓴다 — 따로 적으면 한쪽만 바뀌어 [실측]이 조용히 '파일 없음'이 된다(Phase 007 B8).
+sys.path.insert(0, str(ROOT / ".claude" / "hooks"))
+from log_permission_request import LOG_NAME, project_root  # noqa: E402
+
+PERMISSION_LOG = project_root() / ".claude" / LOG_NAME
 
 
 def load_permission_log(session_ids: set[str], path: Path = PERMISSION_LOG) -> list[dict] | None:
@@ -284,14 +288,16 @@ def print_sessions(paths: list[Path]) -> None:
 def shell_calls(paths: list[Path]) -> list[tuple[str, str]]:
     """[(도구명, 명령)] — Bash/PowerShell 호출만."""
     out: list[tuple[str, str]] = []
+    bad = 0
     for path in paths:
         for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
             if not line.strip():
                 continue
             try:
                 obj = json.loads(line)
-            except Exception:
-                continue  # 잘린 줄. 세션 파일 끝에서 실제로 생긴다
+            except json.JSONDecodeError:
+                bad += 1  # 잘린 줄. 세션 파일 끝에서 실제로 생긴다 — 건수는 아래에서 알린다
+                continue
             msg = obj.get("message") or {}
             content = msg.get("content")
             if not isinstance(content, list):
@@ -302,6 +308,8 @@ def shell_calls(paths: list[Path]) -> list[tuple[str, str]]:
                     cmd = (c.get("input") or {}).get("command", "")
                     if cmd:
                         out.append((c["name"], cmd))
+    if bad:
+        print(f"  (트랜스크립트에서 깨진 줄 {bad}개를 건너뛰었다)", file=sys.stderr)
     return out
 
 

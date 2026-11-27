@@ -136,8 +136,8 @@ def test_명령의_줄바꿈을_한_줄로_눕힌다(tmp_path):
     assert "\n" not in rows[0][2]
 
 
-def test_깨진_줄이_있어도_나머지를_센다(tmp_path):
-    """트랜스크립트를 쓰는 중이면 마지막 줄이 잘려 있을 수 있다."""
+def test_깨진_줄이_있어도_나머지를_센다(tmp_path, capsys):
+    """트랜스크립트를 쓰는 중이면 마지막 줄이 잘려 있을 수 있다. 버린 줄은 건수로 알린다(Phase 007 B9 — 조용한 절단 금지)."""
     p = tmp_path / "s.jsonl"
     p.write_text(
         json.dumps(_use("a", "2026-08-20T10:00:00.000Z", command="ls"))
@@ -147,3 +147,4 @@ def test_깨진_줄이_있어도_나머지를_센다(tmp_path):
         encoding="utf-8",
     )
     assert measure([p]) == [(3.0, "PowerShell", "ls")]
+    assert "깨진 줄 1개" in capsys.readouterr().err
