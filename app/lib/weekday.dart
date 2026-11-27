@@ -9,3 +9,9 @@ String weekdayKo(DateTime d) => _names[d.weekday - 1];
 
 /// 달력 머리줄 — 일요일부터.
 final calendarHeader = [_names[6], ..._names.take(6)];
+
+/// 일요일 시작 주에서 몇째 날인가(일 0 … 토 6) — [calendarHeader]의 칸과 같다. 달력 첫 줄 빈칸·통계 '이번 주'가 쓴다.
+int daysSinceSunday(DateTime d) => d.weekday % 7;
+
+/// "11월 26일 (목)" — 계획 화면의 날짜 머리줄·목록 제목이 쓴다(위젯의 같은 모양 글은 Kotlin `PlanWidget.dayLabel`).
+String dayLabelKo(DateTime d) => '${d.month}월 ${d.day}일 (${weekdayKo(d)})';

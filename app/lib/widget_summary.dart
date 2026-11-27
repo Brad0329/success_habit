@@ -19,7 +19,7 @@ const widgetSummaryVersion = 1;
 
 /// 그날([today]) 위젯 요약. 계획이 없거나 깨진 파일이면 `empty`.
 Map<String, Object?> widgetSummary(PlanStore s, DateTime today) {
-  final day = DateTime(today.year, today.month, today.day);
+  final day = dayOf(today);
   final base = <String, Object?>{
     'v': widgetSummaryVersion,
     'date': dayKey(day), // 날짜 글("11월 26일 (목)")은 위젯이 이 값으로 만든다

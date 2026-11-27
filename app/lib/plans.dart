@@ -81,6 +81,12 @@ bool isWeekend(DateTime d) => d.weekday == DateTime.saturday || d.weekday == Dat
 String dayKey(DateTime d) =>
     '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
 
+/// 시각을 버린 그날 0시 — 날짜끼리 비교·하루씩 넘기기 전에 쓴다(사본을 만들지 않는다 — one_rule_test).
+DateTime dayOf(DateTime d) => DateTime(d.year, d.month, d.day);
+
+/// [day]가 [today]보다 뒤 날짜인가(같은 날 늦은 시각은 아님). 체크·보류·평가 거부(저장소)와 '미래는 보기만'(화면)이 이것 하나로 판정한다.
+bool isFuture(DateTime day, DateTime today) => dayKey(day).compareTo(dayKey(today)) > 0;
+
 String _norm(String s) => s.replaceAll(RegExp(r'\s+'), '').toLowerCase();
 
 /// 이름 비교 열쇠 — 띄어쓰기·대소문자 무시. 같은 이름 금지(F-016)와 통계 검색(F-044)이 같이 쓴다.
@@ -265,7 +271,7 @@ class PlanStore extends ChangeNotifier {
     final from = _dontFrom;
     if (from == null || itemsOn(day) == null) return false;
     final k = dayKey(day);
-    return k.compareTo(from) >= 0 && k.compareTo(dayKey(now())) <= 0;
+    return k.compareTo(from) >= 0 && !isFuture(day, now());
   }
 
   /// F-042 그날이 DON'T 기본 지킴 날인가 — 그날 안 지킴이면 놓침이 확정된다(오늘이라도).
@@ -490,7 +496,7 @@ class PlanStore extends ChangeNotifier {
   /// 체크·보류를 바꿀 수 있는 날·항목인가 — 깨진 파일·미래 날짜·계획 없는 날·목록에 없는 항목이면 false.
   bool _canMark(DateTime day, String id, DateTime today) {
     if (broken) return false;
-    if (dayKey(day).compareTo(dayKey(today)) > 0) return false;
+    if (isFuture(day, today)) return false;
     final items = itemsOn(day);
     return items != null && items.any((i) => i.id == id);
   }
@@ -613,7 +619,7 @@ class PlanStore extends ChangeNotifier {
   Future<bool> saveReview(DateTime day, String text, DateTime today) async {
     _loadReviews();
     if (reviewsBroken) return false;
-    if (dayKey(day).compareTo(dayKey(today)) > 0) return false;
+    if (isFuture(day, today)) return false;
     if (text.length > maxReviewChars) return false;
     final k = dayKey(day);
     final value = text.trim().isEmpty ? null : text;

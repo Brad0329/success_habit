@@ -43,10 +43,7 @@ class _PlanStatsScreenState extends State<PlanStatsScreen> {
     super.dispose();
   }
 
-  DateTime get _today {
-    final n = widget.now();
-    return DateTime(n.year, n.month, n.day);
-  }
+  DateTime get _today => dayOf(widget.now());
 
   @override
   void initState() {

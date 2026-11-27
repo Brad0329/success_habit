@@ -51,10 +51,7 @@ class _PlanScreenState extends State<PlanScreen> with WidgetsBindingObserver {
   PlanStore get s => widget.store;
 
   /// 매번 다시 잰다 — 화면을 켜 둔 채 자정을 넘겨도 오늘이 맞게.
-  DateTime get _today {
-    final n = widget.now();
-    return DateTime(n.year, n.month, n.day);
-  }
+  DateTime get _today => dayOf(widget.now());
 
   @override
   void initState() {
@@ -143,7 +140,7 @@ class _PlanScreenState extends State<PlanScreen> with WidgetsBindingObserver {
     });
   }
 
-  bool _future(DateTime d) => d.isAfter(_today);
+  bool _future(DateTime d) => isFuture(d, _today);
 
   Future<void> _toggle(PlanItem item) async {
     try {
@@ -249,7 +246,7 @@ class _PlanScreenState extends State<PlanScreen> with WidgetsBindingObserver {
   Widget _calendar(ThemeData theme) {
     final first = _month;
     final days = DateTime(first.year, first.month + 1, 0).day;
-    final lead = first.weekday % 7; // 일요일 시작
+    final lead = daysSinceSunday(first); // 일요일 시작
     final cells = <Widget>[
       for (final w in calendarHeader)
         Center(child: Text(w, style: theme.textTheme.labelSmall?.copyWith(color: theme.colorScheme.outline))),
@@ -310,7 +307,7 @@ class _PlanScreenState extends State<PlanScreen> with WidgetsBindingObserver {
     final bg = tone?.$1 ?? theme.colorScheme.surfaceContainerHighest;
     final fg = tone?.$2 ?? theme.colorScheme.onSurface;
     final counts = [for (final k in kinds) '${_label(k)} ${sums[k]!.$1}/${sums[k]!.$2}'].join(' · ');
-    final head = '${d.month}월 ${d.day}일 (${weekdayKo(d)})${counts.isEmpty ? '' : ' · $counts'}';
+    final head = '${dayLabelKo(d)}${counts.isEmpty ? '' : ' · $counts'}';
     return GestureDetector(
       key: const ValueKey('review-bubble'),
       onTap: () => setState(() => _bubble = null),
@@ -490,7 +487,7 @@ class _PlanScreenState extends State<PlanScreen> with WidgetsBindingObserver {
     final done = s.doneOn(_sel);
     final held = s.heldOn(_sel);
     final rest = s.isRestDay(_sel);
-    final title = '${_sel.month}월 ${_sel.day}일 (${weekdayKo(_sel)})${s.isHoliday(_sel) ? ' · 휴일' : ''}'
+    final title = '${dayLabelKo(_sel)}${s.isHoliday(_sel) ? ' · 휴일' : ''}'
         '${_sel == _today ? ' · 오늘' : ''}';
     return [
       Row(children: [

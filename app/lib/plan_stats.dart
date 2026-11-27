@@ -4,6 +4,7 @@
 library;
 
 import 'plans.dart';
+import 'weekday.dart' show daysSinceSunday;
 
 class PlanStat {
   PlanStat(this.item);
@@ -42,8 +43,6 @@ class PlanStats {
   }
 }
 
-DateTime _day(DateTime d) => DateTime(d.year, d.month, d.day);
-
 /// 비율(0~1) → 화면·위젯의 %(정수). % 를 만드는 반올림은 이것 하나뿐이다(one_rule_test) — 통계 합계·항목·달별 추이·▲▼·위젯 막대가
 /// 같은 수에서 같은 %를 보이고, ▲▼(delta)는 화면에 보인 % 끼리의 차가 된다.
 /// 1e-9를 더하는 이유: 0.145 * 100 = 14.4999…처럼 부동소수 오차로 x.5가 내림되는 것을 막는다(실제 비율이 x.5에서 1e-9 안쪽인 경우는 없다 —
@@ -52,8 +51,8 @@ int ratePct(double rate) => (rate * 100 + 1e-9).round();
 
 /// [from]~[to](둘 다 포함)를 [today]까지로 잘라 센다. 계획 없는 날은 건너뛴다.
 PlanStats planStats(PlanStore store, DateTime from, DateTime to, DateTime today) {
-  final start = _day(from);
-  final end = _day(to).isAfter(_day(today)) ? _day(today) : _day(to);
+  final start = dayOf(from);
+  final end = dayOf(to).isAfter(dayOf(today)) ? dayOf(today) : dayOf(to);
   final byId = <String, PlanStat>{};
   var days = 0;
   for (var d = start; !d.isAfter(end); d = DateTime(d.year, d.month, d.day + 1)) {
@@ -147,9 +146,9 @@ const recentDays = 30;
 
 /// 빠른 선택의 (시작, 끝). 이번 주는 일요일 시작(달력과 같음). 끝이 오늘 뒤일 수 있는 건 없다.
 (DateTime, DateTime) periodRange(PlanPeriod p, DateTime today) {
-  final t = _day(today);
+  final t = dayOf(today);
   return switch (p) {
-    PlanPeriod.week => (DateTime(t.year, t.month, t.day - t.weekday % 7), t),
+    PlanPeriod.week => (DateTime(t.year, t.month, t.day - daysSinceSunday(t)), t),
     PlanPeriod.month => (DateTime(t.year, t.month), t),
     PlanPeriod.lastMonth => (DateTime(t.year, t.month - 1), DateTime(t.year, t.month, 0)),
     PlanPeriod.days30 => (DateTime(t.year, t.month, t.day - (recentDays - 1)), t),

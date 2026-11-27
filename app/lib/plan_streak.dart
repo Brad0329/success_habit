@@ -27,8 +27,6 @@ class _Run {
 
 enum _Mark { ok, miss, pending }
 
-DateTime _day(DateTime d) => DateTime(d.year, d.month, d.day);
-
 /// 그날 그 항목의 판정 — 해야 한 날([PlanStore.dueOn])이 아니면 null.
 _Mark? _mark(PlanStore store, DateTime d, PlanItem i, Set<String> due, Set<String> done, bool isToday) {
   if (!due.contains(i.id)) return null;
@@ -40,10 +38,10 @@ _Mark? _mark(PlanStore store, DateTime d, PlanItem i, Set<String> due, Set<Strin
 /// [from]~[to]를 날마다 훑으며 항목마다 [onDay](그날 판정, 갱신된 연속)를 부른다. 계획 없는 날은 건너뛴다. [to]는 [today]까지로 자른다.
 void _walk(PlanStore store, DateTime from, DateTime to, DateTime today,
     void Function(DateTime d, PlanItem i, _Mark m, _Run r, bool isToday) onDay) {
-  final t = _day(today);
-  final end = _day(to).isAfter(t) ? t : _day(to);
+  final t = dayOf(today);
+  final end = dayOf(to).isAfter(t) ? t : dayOf(to);
   final runs = <String, _Run>{};
-  for (var d = _day(from); !d.isAfter(end); d = DateTime(d.year, d.month, d.day + 1)) {
+  for (var d = dayOf(from); !d.isAfter(end); d = DateTime(d.year, d.month, d.day + 1)) {
     final items = store.itemsOn(d);
     if (items == null) continue;
     final due = store.dueOn(d);
