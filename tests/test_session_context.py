@@ -61,7 +61,7 @@ def _project(tmp_path: Path, plan: str | None = PLAN, claude_md: str = "# 프로
 def test_첫_미완료_Phase가_현재_Phase다(tmp_path):
     text = build_context(_project(tmp_path))
     assert "현재 Phase: Phase 003: MVP 코어" in text
-    assert "Phase 2/4 완료" in text          # 하위 항목·'운영 단계 전환'은 Phase 줄이 아니다
+    assert "체크리스트 2/5 완료" in text      # 하위 항목은 세지 않는다. '운영 단계 전환'(번호 없는 최상위 줄)은 센다
 
 
 def test_Phase_줄은_자르지_않고_전부_싣는다(tmp_path):
@@ -102,8 +102,47 @@ def test_plan이_없으면_없다고_알린다(tmp_path):
 
 
 def test_전부_완료면_현재_Phase를_지어내지_않는다(tmp_path):
-    plan = PLAN.replace("- [ ] Phase", "- [x] Phase")
+    plan = PLAN.replace("- [ ] ", "- [x] ")
     assert "미완료 Phase가 없다" in build_context(_project(tmp_path, plan=plan))
+
+
+def test_Phase_번호_없는_미완료_줄이_남으면_그것이_현재다(tmp_path):
+    # Phase 007 A4 이전: Phase 줄이 다 끝나면 '운영 단계 전환'이 남아도 "6/6 완료·미완료 없음"으로 주입했다.
+    plan = PLAN.replace("- [ ] Phase", "- [x] Phase")
+    text = build_context(_project(tmp_path, plan=plan))
+    assert "체크리스트 4/5 완료" in text
+    assert "현재 Phase: 운영 단계 전환" in text
+    assert "미완료 Phase가 없다" not in text
+    assert "하위 항목은 Phase 줄이 아니다" not in text
+
+
+WAITING = """# 전체 계획
+
+## Phase 체크리스트
+- [ ] Phase 001: 코어
+
+## 사용자 실테스트 대기
+- [F-1 위젯] 설치 Success. 사용자 답 "잘 된다" — **자정 항목 빼고 확인함**.
+  **남은 것: 다음 날 아침 모양**. 확인할 것: 자정 알람
+- [F-2 도움말] 사용자 답 "잘 된다" **확인함**: 글 모양
+  다크 모드 · 큰 글자
+- [F-3 통계] 사용자 답 **확인함**: 막대. **남은 것: 달별 추이**
+- 실기기에서 저장 후 재시작
+- <자동화 불가 항목: 플레이스홀더>
+"""
+
+
+def test_확인함_기록은_대기로_세지_않고_뺀_건수를_알린다(tmp_path):
+    text = build_context(_project(tmp_path, plan=WAITING))
+    assert "사용자 실테스트 대기 3건" in text          # F-1(남은 것)·F-3(확인함이어도 남은 것)·재시작
+    assert "확인함 기록 1건" in text                   # 조용히 빼지 않는다
+    assert "F-2 도움말" not in text
+
+
+def test_대기_항목은_이어지는_줄까지_싣는다(tmp_path):
+    text = build_context(_project(tmp_path, plan=WAITING))
+    assert "남은 것: 다음 날 아침 모양" in text          # 둘째 줄 — 첫 줄만 실으면 잘린다
+    assert "자정 알람" in text
 
 
 # ── 원격에 안 올라간 커밋 알림 — 실제 git 저장소로 돌려 본다 ─────────────────────

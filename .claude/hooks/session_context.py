@@ -4,12 +4,14 @@ r"""세션이 시작될 때 plan.md의 현재 Phase·인계 건수·실테스트
 없다(구버전 이해로 그냥 구현한다). 주입은 기계적으로 할 수 있으므로 구조로 옮겼다.
 
 **무엇을 주입하나**:
-  - plan.md 'Phase 체크리스트'의 최상위 Phase 줄 전부(완료/전체 건수와 함께 — 자르지 않는다)
-  - 첫 미완료 Phase = 현재 Phase
+  - plan.md 'Phase 체크리스트'의 최상위 체크 줄 전부(완료/전체 건수와 함께 — 자르지 않는다).
+    `Phase N` 번호가 없는 줄('운영 단계 전환')도 센다 — 빼면 Phase가 다 끝났을 때 "남은 것 없음"으로 주입한다
+  - 첫 미완료 줄 = 현재 Phase
   - '인계' 절의 건수(플레이스홀더 제외) — 내용은 싣지 않고 읽으라고만 한다. Phase별 로그 파일을 가리키던
     것을 대신한다: 로그는 "그 번호의 Phase"에서만 가리켜져 다음 Phase 세션이 못 받았다(템플릿 실프로젝트
     실측, 6개 중 3개가 한 번도 안 읽혔다). plan.md는 매 세션 읽히므로 인계를 거기 둔다.
-  - '사용자 실테스트 대기' 절의 항목(플레이스홀더 `<...>` 제외)
+  - '사용자 실테스트 대기' 절의 항목(플레이스홀더 `<...>` 제외) — 들여 쓴 이어지는 줄까지 통째로('남은 것'이
+    둘째 줄에 있기도 하다). `**확인함**` 기록(‘남은 것’ 없음)은 대기로 세지 않고 뺀 건수만 알린다
   - 원격이 있는데 어느 원격에도 안 올라간 커밋이 있으면 그 개수(PC 고장·분실 시 사라지는 몫).
     **원격이 없으면 아무 말도 하지 않는다** — 원격을 안 두는 것은 초기화 때 사용자가 고른 것이라
     매 세션 되물으면 잔소리가 된다. fetch는 하지 않는다(네트워크 없이 로컬 추적 정보만 본다).
@@ -35,7 +37,10 @@ from hook_io import add_context
 ROOT = Path(__file__).resolve().parents[2]
 
 INIT_MARKER = "템플릿 초기화 모드"
-PHASE_LINE = re.compile(r"^- \[( |x|X)\] (Phase [^\s:]+)(.*)$")
+# 체크리스트의 최상위 줄 전부 — `Phase N` 번호가 없는 줄('운영 단계 전환')도 센다(Phase 007 A4: 빠지면 "다 끝남"으로 주입).
+PHASE_LINE = re.compile(r"^- \[( |x|X)\] (.*)$")
+CONFIRMED = "**확인함**"  # 실테스트 대기 절의 '확인 기록' 표시 — '남은 것'이 함께 있으면 아직 대기
+REMAINING = "남은 것"
 HEADING = re.compile(r"^## +(.*)$")
 
 
@@ -55,10 +60,24 @@ def _section(lines: list[str], title_part: str) -> list[str]:
     return body
 
 
-def _items(lines: list[str], title_part: str) -> list[str]:
-    """그 절의 글머리 항목. 안 채운 플레이스홀더(`- <...>`)는 뺀다."""
-    return [l for l in _section(lines, title_part)
-            if l.lstrip().startswith("-") and not l.lstrip().startswith("- <")]
+def _items(lines: list[str], title_part: str) -> list[list[str]]:
+    """그 절의 최상위 글머리 항목 — 들여 쓴 이어지는 줄(하위 글머리 포함)까지 한 항목으로 묶는다.
+    안 채운 플레이스홀더(`- <...>`)는 뺀다."""
+    items: list[list[str]] = []
+    for line in _section(lines, title_part):
+        if line.startswith("- "):
+            items.append([line])
+        elif items and line[:1].isspace() and line.strip():
+            items[-1].append(line)
+        elif not line.strip() and items:
+            items.append([])  # 빈 줄 = 항목 끝(뒤의 들여 쓴 줄이 앞 항목에 붙지 않게)
+    return [it for it in items if it and not it[0].startswith("- <")]
+
+
+def _confirmed(item: list[str]) -> bool:
+    """확인 기록만 남은 항목인가 — `**확인함**`이 있고 '남은 것'이 없을 때."""
+    text = "\n".join(item)
+    return CONFIRMED in text and REMAINING not in text
 
 
 def _git(root: Path, *args: str) -> str | None:
@@ -107,22 +126,26 @@ def build_context(root: Path) -> str:
     current = next((m for m in phases if m.group(1) == " "), None)
 
     out = ["[session_context] work_log/plan.md 요약 — 작업 전에 plan.md 전문을 Read로 읽을 것."]
-    out.append(f"Phase {done}/{len(phases)} 완료:")
+    out.append(f"Phase 체크리스트 {done}/{len(phases)} 완료:")
     out += [f"  {m.group(0)}" for m in phases]
 
     if current is None:
         out.append("현재 Phase: 미완료 Phase가 없다 — 다음 단계를 사용자에게 확인할 것.")
     else:
-        out.append(f"현재 Phase: {current.group(2)}{current.group(3)}")
+        out.append(f"현재 Phase: {current.group(2)}")
 
     handover = _items(lines, "인계")
     if handover:
         out.append(f"★ 인계 {len(handover)}건 — plan.md '인계' 절을 읽을 것(실패한 접근·버린 대안. 다시 밟지 않는다).")
 
-    waiting = _items(lines, "사용자 실테스트 대기")
+    items = _items(lines, "사용자 실테스트 대기")
+    waiting = [it for it in items if not _confirmed(it)]
+    confirmed = len(items) - len(waiting)
     if waiting:
         out.append(f"사용자 실테스트 대기 {len(waiting)}건 — 확인 전 완료 선언 금지:")
-        out += [f"  {l.strip()}" for l in waiting]
+        out += [f"  {l.strip()}" for it in waiting for l in it]  # 이어지는 줄까지 — '남은 것'이 둘째 줄에 있기도 하다
+    if confirmed:
+        out.append(f"(실테스트 대기 절의 확인함 기록 {confirmed}건은 세지 않았다 — plan.md에 있다)")
 
     out += tail
     return "\n".join(out)
