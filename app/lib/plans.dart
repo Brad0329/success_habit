@@ -109,7 +109,8 @@ String? validateIdentities(List<String> texts) {
   return null;
 }
 
-/// 목록을 저장하면 알린다 — 맨 밑에 떠 있는 계획 화면이 설정에서 바꾼 목록을 다시 그리게(2026-11-24).
+/// 계획 파일을 쓰면 알린다 — 맨 밑에 떠 있는 계획 화면이 설정에서 바꾼 목록을 다시 그리고(2026-11-24),
+/// 홈 화면 위젯 요약(WidgetSync)이 체크·보류·휴일을 바로 다시 쓰게(Phase 007 A1). 등록부 = plan_store_notify_test.
 class PlanStore extends ChangeNotifier {
   PlanStore(this.dir, {this.now = DateTime.now}) {
     _load();
@@ -293,6 +294,7 @@ class PlanStore extends ChangeNotifier {
       rethrow;
     }
     logInfo("DON'T 기본 지킴 시작: $_dontFrom");
+    notifyListeners(); // 파일을 쓰는 public 함수는 모두 알린다(plan_store_notify_test 등록부)
   }
 
   /// F-025 그날 보류한 항목 id(그날 목록에 있는 것만). F-031 기본 보류 중 그날 푼 것은 뺀다.
@@ -432,6 +434,7 @@ class PlanStore extends ChangeNotifier {
       rethrow;
     }
     logInfo('계획을 평일·주말로 나눔: 평일 ${last.items.length}개(적용 $k)');
+    notifyListeners();
   }
 
   /// 평일 DON'T를 주말·휴일에도 보류 없이 — 주말 계획에 없는 평일 DON'T를 주말 순서 맨 뒤(DON'T 묶음 맨 아래)에 넣은
@@ -471,6 +474,7 @@ class PlanStore extends ChangeNotifier {
       rethrow;
     }
     logInfo('휴일 ${on ? '지정' : '해제'}: $k');
+    notifyListeners(); // 홈 화면 위젯이 알림으로 다시 쓴다(Phase 007 A1)
     return true;
   }
 
@@ -511,6 +515,7 @@ class PlanStore extends ChangeNotifier {
       if (wasMissed) missed!.add(id);
       rethrow;
     }
+    notifyListeners(); // 홈 화면 위젯이 알림으로 다시 쓴다(Phase 007 A1)
     return true;
   }
 
@@ -533,6 +538,7 @@ class PlanStore extends ChangeNotifier {
       }
       rethrow;
     }
+    notifyListeners(); // 홈 화면 위젯이 알림으로 다시 쓴다(Phase 007 A1)
     return true;
   }
 

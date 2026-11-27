@@ -94,6 +94,9 @@ class WidgetSync with WidgetsBindingObserver {
   /// 요약을 쓰고 위젯을 다시 그린다 — 한 번에 하나씩(같은 임시 파일을 두 번 동시에 바꿔치지 않게).
   Future<void> sync() => _queue = _queue.then((_) => _sync());
 
+  /// 줄 선 쓰기가 다 끝날 때 — 테스트가 알림으로 건 쓰기를 기다린다(손으로 [sync]를 불러 알림 누락을 가리지 않게).
+  Future<void> get idle => _queue;
+
   /// 실패는 로그만 남긴다 — 위젯이 못 바뀌어도 계획 화면은 계속 써야 한다.
   Future<void> _sync() async {
     try {

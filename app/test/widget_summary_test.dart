@@ -92,24 +92,35 @@ void main() {
     expect(widgetSummary(s, d(8))['identity'], '나는 운동하는 사람이다');
   });
 
-  test('저장소가 알리면(체크) 파일이 새 숫자로 / 같은 내용이면 쓰기 0 / 다시 그리기 호출', () async {
+  test('저장소가 알리면(체크·보류·휴일) 파일이 새 숫자로 / 같은 내용이면 쓰기 0 / 다시 그리기 호출', () async {
     final s = PlanStore(Directory('${tmp.path}/plans'), now: () => d(8));
     await s.saveList([(null, '운동'), (null, '독서')], d(8));
     final file = File('${tmp.path}/widget/today.json');
     var refreshed = 0;
     final ws = WidgetSync(s, file, now: () => d(8), refresh: () async => refreshed++);
-    s.addListener(ws.sync);
+    ws.start(); // 앱과 같은 연결(main.dart) — 저장소 알림으로만 다시 쓴다
     await ws.sync();
     expect(jsonDecode(file.readAsStringSync())['do'], {'label': '0/2', 'pct': 0});
     expect((ws.writes, refreshed), (1, 1));
 
+    // 체크·보류·휴일 각각 — 손으로 sync()를 부르지 않는다(Phase 007 A1: 알림이 빠지면 여기서 잡힌다).
     await s.toggle(d(8), idOf(s, '운동'), d(8));
-    await ws.sync(); // 알림이 건 것 뒤에 줄 선다
+    await ws.idle;
     expect(jsonDecode(file.readAsStringSync())['do'], {'label': '1/2', 'pct': 50});
     expect((ws.writes, refreshed), (2, 2));
 
-    await ws.sync();
-    expect((ws.writes, refreshed), (2, 2));
+    await s.toggleHold(d(8), idOf(s, '독서'), d(8));
+    await ws.idle;
+    expect(jsonDecode(file.readAsStringSync())['do'], {'label': '1/1', 'pct': 100});
+    expect((ws.writes, refreshed), (3, 3));
+
+    await s.toggleHoliday(d(8)); // 목요일 → 쉬는 날: 주말 계획이 비어 평일 계획 전부 기본 보류
+    await ws.idle;
+    expect(jsonDecode(file.readAsStringSync())['do'], isNull);
+    expect((ws.writes, refreshed), (4, 4));
+
+    await ws.sync(); // 같은 내용이면 쓰기 0
+    expect((ws.writes, refreshed), (4, 4));
     expect(File('${file.path}.tmp').existsSync(), isFalse);
   });
 }
