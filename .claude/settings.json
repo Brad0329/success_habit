@@ -56,6 +56,12 @@
             "command": "python \"$CLAUDE_PROJECT_DIR/.claude/hooks/no_shell_file_write.py\"",
             "timeout": 10,
             "statusMessage": "셸 파일 쓰기 검사"
+          },
+          {
+            "type": "command",
+            "command": "python \"$CLAUDE_PROJECT_DIR/.claude/hooks/commit_mutation_check.py\"",
+            "timeout": 10,
+            "statusMessage": "커밋 메시지 변이 확인 검사"
           }
         ]
       }
