@@ -68,6 +68,12 @@ class _Store extends PlanStore {
   DateTime? first;
   final doneDays = <String, Set<String>>{};
 
+  // F-103 도움 동영상 — 메모리에만(기본 0건).
+  final videos = <String, String>{};
+
+  @override
+  String? videoOf(String id) => videos[id];
+
   @override
   DateTime? get firstDay => first;
 
@@ -140,6 +146,37 @@ void main() {
     expect(find.textContaining('🔥'), findsNothing);
     expect(find.byKey(const ValueKey('miss-p2')), findsNothing);
     expect(find.byKey(const ValueKey('miss-dot-2026-11-12')), findsOneWidget);
+  });
+
+  testWidgets("F-103 링크 있는 DO 줄에만 ▶ 1개 → 누르면 그 링크로 열기 1번 / 열 앱이 없으면 문구", (t) async {
+    t.view.physicalSize = const Size(800, 2400);
+    t.view.devicePixelRatio = 1;
+    addTearDown(t.view.reset);
+    final s = _Store(tmp)
+      ..videos.addAll({'p1': 'https://youtu.be/a', 'p3': 'https://youtu.be/dont'}); // p3 = DON'T — ▶ 없어야 한다
+    final opened = <String>[];
+    var answer = true;
+    await t.pumpWidget(MaterialApp(
+        home: PlanScreen(
+            store: s,
+            now: () => DateTime(2026, 11, 13, 21, 4),
+            openUrl: (url) async {
+              opened.add(url);
+              return answer;
+            })));
+    await t.pump();
+    expect(find.byIcon(Icons.play_arrow), findsOneWidget);
+    expect(find.byKey(const ValueKey('play-p1')), findsOneWidget);
+    await t.tap(find.byKey(const ValueKey('play-p1')));
+    await t.pump();
+    expect(opened, ['https://youtu.be/a']);
+    expect(find.text('동영상을 열지 못했습니다'), findsNothing);
+    answer = false;
+    await t.tap(find.byKey(const ValueKey('play-p1')));
+    await t.pump();
+    expect(opened, hasLength(2));
+    expect(find.text('동영상을 열지 못했습니다'), findsOneWidget);
+    expect(s.doneOn(d(13)), isEmpty, reason: '열기만 한다 — 체크는 그대로');
   });
 
   testWidgets('F-039 정체성 문장이 있으면 달력 위 칸에 한 줄씩, 0개면 칸 없음', (t) async {

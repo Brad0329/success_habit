@@ -27,6 +27,10 @@ const maxPlanChars = 40;
 const maxReviewChars = 1000; // F-024 하루 평가
 const maxIdentities = 3; // F-039 정체성 문장
 const maxIdentityChars = 40;
+const maxVideoUrlChars = 300; // F-103 도움 동영상 링크
+
+/// F-103 받는 링크의 주소 — 유튜브만(유튜브 앱이 여는 주소).
+const videoHosts = {'youtube.com', 'www.youtube.com', 'm.youtube.com', 'youtu.be'};
 
 /// F-026 계획 종류 — DO(하기) · DON'T(안 하기). DON'T의 체크 = 지켰다.
 enum PlanKind {
@@ -116,6 +120,15 @@ String? validateIdentities(List<String> texts) {
   return null;
 }
 
+/// F-103 저장할 수 있으면 null, 아니면 화면에 보일 이유. [url]은 이미 앞뒤 공백을 지운 빈 글이 아닌 링크.
+String? validateVideoUrl(String url) {
+  if (url.length > maxVideoUrlChars) return '링크는 $maxVideoUrlChars자까지';
+  final u = Uri.tryParse(url);
+  final web = u != null && (u.scheme == 'https' || u.scheme == 'http');
+  if (!web || !videoHosts.contains(u.host)) return '유튜브 링크만 넣을 수 있습니다';
+  return null;
+}
+
 /// 계획 파일을 쓰면 알린다 — 맨 밑에 떠 있는 계획 화면이 설정에서 바꾼 목록을 다시 그리고(2026-11-24),
 /// 홈 화면 위젯 요약(WidgetSync)이 체크·보류·휴일을 바로 다시 쓰게(Phase 007 A1). 등록부 = plan_store_notify_test.
 class PlanStore extends ChangeNotifier {
@@ -141,6 +154,7 @@ class PlanStore extends ChangeNotifier {
   final _released = <String, Set<String>>{}; // F-031 쉬는 날 그날만 푼 평일 계획 — 날짜 → 항목 id
   final _holidays = <String>{}; // F-031 휴일로 지정한 평일
   final _identities = <String>[]; // F-039 정체성 문장(지금 값만, 0개면 파일에 키 없음)
+  final _videos = <String, String>{}; // F-103 계획 id → 도움 동영상 링크(지금 값만, 0건이면 파일에 키 없음)
   var _nextId = 1;
 
   /// 평일 DON'T를 주말 계획에 자동으로 넣기 시작한 날(SCHEMA 2026-11-24). null = 아직(옛 파일).
@@ -180,6 +194,8 @@ class PlanStore extends ChangeNotifier {
           .forEach((k, v) => _missed[k as String] = {for (final id in v as List) id as String});
       // F-039: 키가 없는 옛 파일 = 0개. 문자열 목록이 아니면 캐스트가 던져 깨진 파일로 본다.
       _identities.addAll([for (final t in (j['identities'] as List?) ?? const []) t as String]);
+      // F-103: 키가 없는 옛 파일 = 0건. 맵이 아니거나 값이 글이 아니면 캐스트가 던져 깨진 파일로 본다.
+      ((j['videos'] as Map?) ?? const {}).forEach((k, v) => _videos[k as String] = v as String);
       _nextId = j['next_id'] as int;
       _dontRestFrom = j['dont_rest_from'] as String?;
     } on Object catch (e) {
@@ -192,6 +208,7 @@ class PlanStore extends ChangeNotifier {
       _dontFrom = null;
       _missed.clear();
       _identities.clear();
+      _videos.clear();
       broken = true;
     }
   }
@@ -398,6 +415,7 @@ class PlanStore extends ChangeNotifier {
     final prevNext = _nextId;
     final prevDontRest = _dontRestFrom;
     _dontRestFrom ??= k; // 새 코드가 쓴 파일 = 평일 DON'T가 주말에 들어가는 규칙을 따른다(SCHEMA 2026-11-24)
+    final droppedVideos = _dropVideosNotIn(items); // F-103 지운 계획의 링크도 지운다
     final added = last == null || last.from != k;
     final oldItems = last?.items;
     final oldWeekend = last?.weekend;
@@ -420,10 +438,52 @@ class PlanStore extends ChangeNotifier {
       }
       _nextId = prevNext;
       _dontRestFrom = prevDontRest;
+      _videos.addAll(droppedVideos);
       rethrow;
     }
     logInfo('계획 저장: 평일 ${items.where((i) => i.weekday).length}개 · 주말 ${weekend.length}개(적용 $k)');
     notifyListeners();
+    return null;
+  }
+
+  /// F-103 [items]에 DO로 없는 계획의 링크를 빼고, 뺀 것을 돌려준다(쓰기 실패 때 되돌리기용).
+  Map<String, String> _dropVideosNotIn(List<PlanItem> items) {
+    final keep = {for (final i in items) if (i.kind == PlanKind.doIt) i.id};
+    final dropped = {for (final e in _videos.entries) if (!keep.contains(e.key)) e.key: e.value};
+    _videos.removeWhere((id, _) => dropped.containsKey(id));
+    return dropped;
+  }
+
+  /// F-103 계획 [id]의 도움 동영상 링크. 없으면 null.
+  String? videoOf(String id) => _videos[id];
+
+  /// F-103 지금 목록의 DO 계획 [id]에 도움 동영상 링크를 넣는다 — 앞뒤 공백을 지우고, 빈 글이면 지운다.
+  /// 실패면 이유(파일은 그대로), 성공·변화 없음이면 null. 쓰기 실패는 되돌리고 다시 던진다.
+  Future<String?> saveVideo(String id, String url) async {
+    if (broken) return '계획 파일을 읽지 못해 저장할 수 없습니다';
+    if (!current.any((i) => i.id == id && i.kind == PlanKind.doIt)) return '동영상은 지금 목록의 DO 계획에만 넣을 수 있습니다';
+    final next = url.trim();
+    final error = next.isEmpty ? null : validateVideoUrl(next);
+    if (error != null) return error;
+    final old = _videos[id];
+    if ((old ?? '') == next) return null;
+    if (next.isEmpty) {
+      _videos.remove(id);
+    } else {
+      _videos[id] = next;
+    }
+    try {
+      await _write();
+    } on Object {
+      if (old == null) {
+        _videos.remove(id);
+      } else {
+        _videos[id] = old;
+      }
+      rethrow;
+    }
+    logInfo('도움 동영상 ${next.isEmpty ? '지움' : '저장'}: 링크 ${_videos.length}개'); // 링크 글은 남기지 않는다
+    notifyListeners(); // 맨 밑 계획 화면이 ▶를 바로 그리게
     return null;
   }
 
@@ -672,6 +732,7 @@ class PlanStore extends ChangeNotifier {
             if (e.value.isNotEmpty) e.key: e.value.toList()..sort(),
         },
         if (_identities.isNotEmpty) 'identities': List.of(_identities),
+        if (_videos.isNotEmpty) 'videos': Map.of(_videos),
       });
 
   /// 임시 파일에 쓰고 바꿔치기 — 계획·평가 파일이 같이 쓴다(쓰기 지점 하나, file_writers_test).

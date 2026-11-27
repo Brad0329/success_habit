@@ -48,9 +48,10 @@ void main() {
     final ktChannels = {for (final m in RegExp(r'MethodChannel\([^,]+,\s*"([^"]+)"\)').allMatches(kt)) m.group(1)!};
     expect(dartChannels, {'chaerok/app'});
     expect(ktChannels, dartChannels);
-    final called = {for (final m in RegExp(r"invokeMethod<\w+>\('(\w+)'\)").allMatches(dart)) m.group(1)!};
+    // 인자가 있는 호출(F-103 openUrl)도 잡게 — 이름 뒤가 `)`든 `,`든.
+    final called = {for (final m in RegExp(r"invokeMethod<\w+>\('(\w+)'[,)]").allMatches(dart)) m.group(1)!};
     final handled = {for (final m in RegExp(r'"(\w+)" ->').allMatches(kt)) m.group(1)!};
-    expect(called, {'filesDir', 'refreshWidget'}, reason: '정규식이 비어 통과하지 않게');
+    expect(called, {'filesDir', 'refreshWidget', 'openUrl'}, reason: '정규식이 비어 통과하지 않게');
     expect(handled, called);
   });
 

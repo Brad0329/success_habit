@@ -17,6 +17,7 @@ const boundaryTested = {
   'plans.dart:maxReviewChars': 'plans_test 하루 평가 — 1001자 거부 / 1000자 저장',
   'plans.dart:maxIdentities': 'plans_test F-039 — 4개 거부 / 3개 저장',
   'plans.dart:maxIdentityChars': 'plans_test F-039 — 41자 거부 / 40자 저장',
+  'plans.dart:maxVideoUrlChars': 'plans_test F-103 — 301자 거부 / 300자 저장',
   'plan_stats.dart:maxTrendMonths': 'plan_stats_test F-043 — 3달이면 전부 / 4달이면 최근 3달 + 전체 4달',
 };
 

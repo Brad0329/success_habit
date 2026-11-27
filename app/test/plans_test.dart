@@ -1,4 +1,5 @@
 // F-016 계획관리 — 목록 이력·체크·집계·검증(REQUIREMENTS F-016 수용 기준). 모양은 사용자 실테스트.
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:chaerok/log.dart';
@@ -39,6 +40,29 @@ class _Capture extends PlanStore {
   Future<String?> saveIdentities(List<String> texts) async {
     savedIds.add(texts);
     ids = [for (final t in texts) if (t.trim().isNotEmpty) t.trim()];
+    return null;
+  }
+
+  // F-103 — 링크도 메모리에만, 저장 호출을 받아 적는다.
+  // F-103 테스트만 목록을 고정한다(null이면 실제 저장소 그대로 — 다른 테스트 영향 0).
+  List<PlanItem>? fixed;
+
+  @override
+  List<PlanItem> get current => fixed ?? super.current;
+  final videos = <String, String>{};
+  final savedVideos = <(String, String)>[];
+
+  @override
+  String? videoOf(String id) => videos[id];
+
+  @override
+  Future<String?> saveVideo(String id, String url) async {
+    savedVideos.add((id, url));
+    if (url.trim().isEmpty) {
+      videos.remove(id);
+    } else {
+      videos[id] = url.trim();
+    }
     return null;
   }
 }
@@ -716,6 +740,150 @@ void main() {
       expect(s.broken, isTrue);
       expect(await s.saveIdentities(['나는 읽는 사람이다']), isNotNull);
       expect(file.readAsStringSync(), before);
+    });
+  });
+
+  group('F-103 도움 동영상', () {
+    const link = 'https://youtu.be/abc';
+
+    Future<PlanStore> seed() async {
+      final s = open();
+      await s.saveItems([(null, '요가', PlanKind.doIt), (null, '독서', PlanKind.doIt), (null, '야식', PlanKind.dont)], d(5));
+      return s;
+    }
+
+    Map<String, Object?> json() => jsonDecode(file.readAsStringSync()) as Map<String, Object?>;
+
+    test('DO에 링크 저장 → videos에 1건, 다시 읽어도 같다 / 빈 글로 저장하면 키가 없다', () async {
+      final s = await seed();
+      final yoga = idOf(s, d(5), '요가');
+      expect(json().containsKey('videos'), isFalse);
+      expect(await s.saveVideo(yoga, '  $link '), isNull);
+      expect(json()['videos'], {yoga: link});
+      expect(open().videoOf(yoga), link);
+      expect(open().videoOf(idOf(s, d(5), '독서')), isNull);
+      expect(await s.saveVideo(yoga, '   '), isNull);
+      expect(json().containsKey('videos'), isFalse);
+      expect(open().videoOf(yoga), isNull);
+    });
+
+    test('videos 키가 없는 옛 파일 → 링크 0건, 계획·체크 그대로', () async {
+      file.writeAsStringSync(jsonEncode({
+        'version': 1,
+        'next_id': 2,
+        'lists': [
+          {'from': '2026-10-01', 'items': [{'id': 'p1', 'title': '요가', 'kind': 'do'}], 'weekend': []},
+        ],
+        'done': {'2026-10-05': ['p1']},
+      }));
+      final s = open();
+      expect(s.broken, isFalse);
+      expect(s.videoOf('p1'), isNull);
+      expect(titles(s.itemsOn(d(5))), ['요가']);
+      expect(s.summary(d(5)), (1, 1));
+      expect(await s.saveVideo('p1', link), isNull); // 옛 파일 위에 저장해도 다른 키 그대로
+      expect(json()['done'], {'2026-10-05': ['p1']});
+    });
+
+    for (final bad in ['{"p1":3}', '["p1"]', '"p1"']) {
+      test('videos가 $bad 이면 깨진 파일 — 저장·체크 거부, 파일 그대로', () async {
+        file.writeAsStringSync(
+            '{"version":1,"next_id":2,"lists":[{"from":"2026-10-01","items":[{"id":"p1","title":"요가"}]}],"done":{},"videos":$bad}');
+        final before = file.readAsStringSync();
+        final s = open();
+        expect(s.broken, isTrue);
+        expect(await s.saveVideo('p1', link), isNotNull);
+        expect(await s.toggle(d(5), 'p1', d(5)), isFalse);
+        expect(file.readAsStringSync(), before);
+      });
+    }
+
+    test('유튜브가 아닌 주소·ftp·주소 아닌 글은 거부, 파일 그대로 / www.·m.·youtu.be·youtube.com 모두 받음', () async {
+      final s = await seed();
+      final yoga = idOf(s, d(5), '요가');
+      final before = file.readAsStringSync();
+      for (final bad in ['https://example.com/a', 'ftp://youtu.be/a', '요가 영상', 'youtu.be/abc', 'https://youtu.be.evil.com/a']) {
+        expect(await s.saveVideo(yoga, bad), '유튜브 링크만 넣을 수 있습니다', reason: bad);
+      }
+      expect(file.readAsStringSync(), before);
+      for (final ok in [
+        'https://www.youtube.com/watch?v=abc',
+        'https://m.youtube.com/watch?v=abc',
+        'http://youtube.com/shorts/abc',
+        link,
+      ]) {
+        expect(await s.saveVideo(yoga, ok), isNull, reason: ok);
+        expect(open().videoOf(yoga), ok);
+      }
+    });
+
+    test('300자 링크는 저장 / 301자는 거부', () async {
+      final s = await seed();
+      final yoga = idOf(s, d(5), '요가');
+      const head = 'https://youtu.be/';
+      final at = head + 'a' * (maxVideoUrlChars - head.length);
+      expect(at.length, 300);
+      expect(await s.saveVideo(yoga, '${at}a'), '링크는 300자까지');
+      expect(open().videoOf(yoga), isNull);
+      expect(await s.saveVideo(yoga, at), isNull);
+      expect(open().videoOf(yoga), at);
+    });
+
+    test("DON'T·지금 목록에 없는 id는 거부, 쓰기 0", () async {
+      final s = await seed();
+      file.setLastModifiedSync(DateTime(2020));
+      expect(await s.saveVideo(idOf(s, d(5), '야식'), link), isNotNull);
+      expect(await s.saveVideo('p999', link), isNotNull);
+      expect(file.lastModifiedSync(), DateTime(2020));
+    });
+
+    test('계획을 지우면 링크도 빠진다 / 이름·순서를 바꿔도 링크는 그대로', () async {
+      final s = await seed();
+      final yoga = idOf(s, d(5), '요가');
+      final read = idOf(s, d(5), '독서');
+      final dont = idOf(s, d(5), '야식');
+      await s.saveVideo(yoga, link);
+      await s.saveVideo(read, 'https://youtu.be/b');
+      // 이름 바꾸기 + 순서 바꾸기
+      await s.saveItems([(read, '책 읽기', PlanKind.doIt), (yoga, '요가 10분', PlanKind.doIt), (dont, '야식', PlanKind.dont)], d(6));
+      expect(open().videoOf(yoga), link);
+      expect(open().videoOf(read), 'https://youtu.be/b');
+      // 독서를 지운다
+      await s.saveItems([(yoga, '요가 10분', PlanKind.doIt), (dont, '야식', PlanKind.dont)], d(7));
+      expect(json()['videos'], {yoga: link});
+      expect(open().videoOf(read), isNull);
+    });
+
+    test('같은 링크로 다시 저장하면 쓰기 0 / 없는 링크를 지우면 쓰기 0', () async {
+      final s = await seed();
+      final yoga = idOf(s, d(5), '요가');
+      await s.saveVideo(yoga, link);
+      file.setLastModifiedSync(DateTime(2020));
+      expect(await s.saveVideo(yoga, ' $link'), isNull);
+      expect(await s.saveVideo(idOf(s, d(5), '독서'), ''), isNull);
+      expect(file.lastModifiedSync(), DateTime(2020));
+    });
+
+    testWidgets("설정: DO 줄에만 영상 아이콘 → 링크 창에 넣고 저장 → 다시 열면 그 링크와 '지우기' → 지우기", (t) async {
+      final s = _Capture(tmp)..fixed = const [PlanItem('p1', '요가'), PlanItem('p2', '야식', PlanKind.dont)];
+      await t.pumpWidget(MaterialApp(home: PlanEditScreen(store: s)));
+      expect(find.byKey(const ValueKey('plan-video-p1')), findsOneWidget);
+      expect(find.byKey(const ValueKey('plan-video-p2')), findsNothing);
+      await t.tap(find.byKey(const ValueKey('plan-video-p1')));
+      await t.pumpAndSettle();
+      expect(find.text('도움 동영상 — 요가'), findsOneWidget);
+      expect(find.byKey(const ValueKey('video-clear')), findsNothing); // 링크가 없으면 '지우기' 없음
+      await t.enterText(find.byKey(const ValueKey('video-field')), link);
+      await t.tap(find.byKey(const ValueKey('video-save')));
+      await t.pumpAndSettle();
+      expect(s.savedVideos, [('p1', link)]);
+      await t.tap(find.byKey(const ValueKey('plan-video-p1')));
+      await t.pumpAndSettle();
+      expect(t.widget<TextField>(find.byKey(const ValueKey('video-field'))).controller!.text, link);
+      await t.tap(find.byKey(const ValueKey('video-clear')));
+      await t.pumpAndSettle();
+      expect(s.savedVideos.last, ('p1', ''));
+      expect(s.videos, isEmpty);
     });
   });
 }

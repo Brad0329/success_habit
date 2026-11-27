@@ -42,6 +42,7 @@ final Map<String, _Case> _writers = {
   'saveItems': (setUp: null, act: (s) => s.saveItems([(null, '운동', PlanKind.doIt)], d(8))),
   'saveWeekend': (setUp: _oneItem, act: (s) => s.saveWeekend([(null, '산책', PlanKind.doIt)], d(8))),
   'saveIdentities': (setUp: null, act: (s) => s.saveIdentities(['나는 운동하는 사람이다'])),
+  'saveVideo': (setUp: _oneItem, act: (s) => s.saveVideo(_idOf(s, '운동'), 'https://youtu.be/abc')),
   'toggle': (setUp: _oneItem, act: (s) => s.toggle(d(8), _idOf(s, '운동'), d(8))),
   'toggleHold': (setUp: _oneItem, act: (s) => s.toggleHold(d(8), _idOf(s, '운동'), d(8))),
   'toggleHoliday': (setUp: _oneItem, act: (s) => s.toggleHoliday(d(8))),

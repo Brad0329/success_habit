@@ -15,12 +15,16 @@ import 'log.dart';
 import 'plan_stats_screen.dart';
 import 'plan_streak.dart';
 import 'plans.dart';
+import 'platform.dart' show openExternalUrl;
 import 'weekday.dart';
 
 class PlanScreen extends StatefulWidget {
-  const PlanScreen({super.key, required this.store, this.now = DateTime.now});
+  const PlanScreen({super.key, required this.store, this.now = DateTime.now, this.openUrl = openExternalUrl});
   final PlanStore store;
   final DateTime Function() now;
+
+  /// F-103 ▶ — 링크를 유튜브 앱으로 연다(테스트는 가짜를 넣는다). 열 앱이 없으면 false.
+  final Future<bool> Function(String url) openUrl;
 
   @override
   State<PlanScreen> createState() => _PlanScreenState();
@@ -149,6 +153,18 @@ class _PlanScreenState extends State<PlanScreen> with WidgetsBindingObserver {
     } on Object catch (e) {
       logError('계획 체크 저장 실패', e);
       setState(() => _note = '체크를 저장하지 못했습니다');
+    }
+  }
+
+  /// F-103 ▶ — 유튜브 앱으로 열기만 한다(체크는 체크 상자로 — 2026-11-27 사용자).
+  Future<void> _play(String url) async {
+    try {
+      final ok = await widget.openUrl(url);
+      if (!ok) logWarn('도움 동영상을 열 앱이 없음');
+      if (mounted) setState(() => _note = ok ? null : '동영상을 열지 못했습니다');
+    } on Object catch (e) {
+      logError('도움 동영상 열기 실패', e);
+      if (mounted) setState(() => _note = '동영상을 열지 못했습니다');
     }
   }
 
@@ -573,9 +589,28 @@ class _PlanScreenState extends State<PlanScreen> with WidgetsBindingObserver {
                   ? TextStyle(color: dim)
                   : null,
         ),
-        secondary: held ? Text('보류', style: theme.textTheme.labelSmall?.copyWith(color: dim)) : _fire(theme, it, streak),
+        secondary: _trailing(theme, it, held: held, streak: streak),
       ),
     );
+  }
+
+  /// 줄 오른쪽 — F-103 ▶(링크 있는 DO만) + '보류' 또는 🔥. 둘 다 없으면 null.
+  Widget? _trailing(ThemeData theme, PlanItem it, {required bool held, PlanStreak? streak}) {
+    final tag = held
+        ? Text('보류', style: theme.textTheme.labelSmall?.copyWith(color: theme.colorScheme.outline))
+        : _fire(theme, it, streak);
+    final url = it.kind == PlanKind.doIt ? s.videoOf(it.id) : null;
+    if (url == null) return tag;
+    return Row(mainAxisSize: MainAxisSize.min, children: [
+      IconButton.filledTonal(
+        key: ValueKey('play-${it.id}'),
+        tooltip: '도움 동영상 보기',
+        visualDensity: VisualDensity.compact,
+        icon: const Icon(Icons.play_arrow),
+        onPressed: () => _play(url),
+      ),
+      if (tag != null) ...[const SizedBox(width: 4), tag],
+    ]);
   }
 
   /// F-042 직전 놓침 문구 — 1회 '어제 놓침 — 오늘은 꼭', 2회 이상 'N회 연속 놓침', 없으면 null.

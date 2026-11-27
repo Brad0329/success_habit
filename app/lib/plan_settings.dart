@@ -135,6 +135,55 @@ class _IdentityEditScreenState extends State<IdentityEditScreen> {
   }
 }
 
+/// F-103 도움 동영상 링크 창(목업 ①). 저장 = 입력 글, 지우기 = 빈 글, 취소 = null.
+/// 컨트롤러는 창이 다 닫힌 뒤에 버린다(`dialog_controller_guard_test`).
+class VideoLinkDialog extends StatefulWidget {
+  const VideoLinkDialog({super.key, required this.title, required this.initial});
+  final String title;
+  final String initial;
+
+  @override
+  State<VideoLinkDialog> createState() => _VideoLinkDialogState();
+}
+
+class _VideoLinkDialogState extends State<VideoLinkDialog> {
+  late final _c = TextEditingController(text: widget.initial);
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+        title: Text('도움 동영상 — ${widget.title}'),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: TextField(
+            key: const ValueKey('video-field'),
+            controller: _c,
+            autofocus: true,
+            maxLength: maxVideoUrlChars,
+            keyboardType: TextInputType.url,
+            textInputAction: TextInputAction.done,
+            onSubmitted: (v) => Navigator.of(context).pop(v),
+            decoration: const InputDecoration(
+              hintText: 'https://youtu.be/…',
+              helperText: '유튜브 링크만 · 비우면 링크 없음',
+              border: OutlineInputBorder(),
+            ),
+          ),
+        ),
+        actions: [
+          if (widget.initial.isNotEmpty)
+            TextButton(key: const ValueKey('video-clear'), onPressed: () => Navigator.of(context).pop(''), child: const Text('지우기')),
+          TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('취소')),
+          FilledButton(key: const ValueKey('video-save'), onPressed: () => Navigator.of(context).pop(_c.text), child: const Text('저장')),
+        ],
+      );
+}
+
 class PlanEditScreen extends StatefulWidget {
   const PlanEditScreen({super.key, required this.store, this.weekend = false, this.now = DateTime.now});
   final PlanStore store;
@@ -203,6 +252,22 @@ class _PlanEditScreenState extends State<PlanEditScreen> {
     await _save(_join(kind, rows));
   }
 
+  /// F-103 DO 계획의 도움 동영상 링크 창 — 저장·지우기(빈 글로 저장)·취소.
+  Future<void> _editVideo(String id, String title) async {
+    final url = await showDialog<String>(
+      context: context,
+      builder: (_) => VideoLinkDialog(title: title, initial: s.videoOf(id) ?? ''),
+    );
+    if (url == null) return;
+    try {
+      final error = await s.saveVideo(id, url);
+      setState(() => _error = error);
+    } on Object catch (e) {
+      logError('도움 동영상 저장 실패', e);
+      setState(() => _error = '저장하지 못했습니다');
+    }
+  }
+
   void _reorder(PlanKind kind, int from, int to) {
     final rows = _rowsOf(kind);
     final r = rows.removeAt(from);
@@ -210,6 +275,18 @@ class _PlanEditScreenState extends State<PlanEditScreen> {
     _save(_join(kind, rows));
     // saveItems는 파일 쓰기(await) 전에 목록을 바꿔 둔다 — 바로 다시 그려 놓은 자리로 되튀는 깜빡임을 막는다.
     setState(() {});
+  }
+
+  /// F-103 영상 아이콘 — 링크가 있으면 강조색, 없으면 흐리게(목업 ① 2026-11-27 "이대로").
+  Widget _videoButton(ThemeData theme, String id, String title) {
+    final has = s.videoOf(id) != null;
+    return IconButton(
+      key: ValueKey('plan-video-$id'),
+      tooltip: '도움 동영상',
+      icon: Icon(has ? Icons.movie : Icons.movie_outlined,
+          color: has ? theme.colorScheme.primary : theme.colorScheme.outlineVariant),
+      onPressed: () => _editVideo(id, title),
+    );
   }
 
   /// 한 묶음 — 제목 · 끌어서 순서 · 추가 칸.
@@ -236,6 +313,7 @@ class _PlanEditScreenState extends State<PlanEditScreen> {
                 leading: ReorderableDragStartListener(index: k, child: const Icon(Icons.drag_indicator)),
                 title: Text(rows[k].$2),
                 trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+                  if (!dont) _videoButton(theme, rows[k].$1!, rows[k].$2),
                   IconButton(
                       tooltip: '이름 바꾸기', icon: const Icon(Icons.edit_outlined), onPressed: () => _rename(kind, k)),
                   // F-031 주말 편집에서 편입한 평일 계획은 지우지 않고 보류로 되돌린다.
