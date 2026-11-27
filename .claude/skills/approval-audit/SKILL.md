@@ -81,7 +81,8 @@ python scripts/measure_approvals.py
 - 규칙: **`.claude/settings.local.json`의 `permissions.allow`에만** 넣는다 — `settings.json`의
   `allow`는 이 환경에서 효력이 없다(실측). 패턴에 역슬래시를 쓰지 않는다(슬래시 경로).
 - 훅: 동봉 차단 훅은 **최대 6종**(`no_redundant_cd`(cd 복합·루트 `git -C`)·`no_output_filter`·`no_inline_python`·
-  `no_scratchpad_path`·`no_shell_file_write` + 선택형 `no_targeted_flutter_test` — Flutter가 아니면 초기화 때 지운다).
+  `no_scratchpad_path`·`no_shell_file_write` + 선택형 `no_targeted_flutter_test` — Flutter 프로젝트용, 이 저장소에는 있다).
+  같은 PreToolUse에 승인 대기와 무관한 검증 훅 `commit_mutation_check`(테스트가 든 커밋의 변이 확인, Phase 007 A3)도 있다 — 이 점검 대상이 아니다.
   `session_context`는 차단이 아니라 SessionStart 주입 훅이라 이 점검 대상이 아니다. `log_permission_request`
   (PermissionRequest)는 측정용 기록 훅이다 — 막지 않으며, 이 점검의 재료를 만든다. **개수를 외우지 말고
   `.claude/hooks/`의 실제 파일과 settings.json 등록 항목을 대조한다.** 등록은 **matcher

@@ -13,7 +13,7 @@ grep은 같은 단어만 잡는다. 실제로 남는 모순은 단어가 다르�
 시험 4회(2026-09-28~10-11) 모두 grep에 안 걸리고 읽어서만 잡힌 것이 1건씩 있었다. 그 몫이 이 에이전트의 일이다.
 
 ## 읽는 범위 — 빠뜨리지 않는다
-- `CLAUDE.md`(HTML 주석 안의 초기화 블록 포함) · `README.md`
+- `CLAUDE.md` · `README.md`(있으면)
 - `docs/` 전체(`playbooks/`·REQUIREMENTS·SCHEMA) · `work_log/plan.md`
 - `.claude/skills/*/SKILL.md` · `.claude/agents/*.md` — "문서"로 안 보여 대조에서 빠지던 곳
 - `.claude/hooks/*.py` · `scripts/*.py`의 머리말 주석과 **사용자·AI에게 출력하는 문구**
