@@ -120,6 +120,20 @@ void main() {
       expect(tr.delta(id), -11);
     });
 
+    test('maxTrendMonths 경계: 딱 3달이면 3달 전부·절단 없음 / 4달이면 최근 3달 + 전체 4달', () async {
+      final s = PlanStore(tmp);
+      await s.saveList([(null, '운동')], DateTime(2026, 8, 31));
+      final at = planTrend(s, today);
+      expect(at.months, [DateTime(2026, 8), DateTime(2026, 9), DateTime(2026, 10)]);
+      expect(at.totalMonths, 3);
+
+      final u = PlanStore(Directory('${tmp.path}/b')..createSync());
+      await u.saveList([(null, '운동')], DateTime(2026, 7, 1));
+      final over = planTrend(u, today);
+      expect(over.months, [DateTime(2026, 8), DateTime(2026, 9), DateTime(2026, 10)]);
+      expect(over.totalMonths, 4);
+    });
+
     test('첫 목록이 3달보다 앞이면 최근 3달 + 전체 달 수', () async {
       final s = PlanStore(tmp);
       await s.saveList([(null, '운동')], DateTime(2026, 6, 15));

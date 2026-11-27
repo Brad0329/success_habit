@@ -84,8 +84,8 @@ PlanStats filterStats(PlanStats st, String query) => PlanStats(st.from, st.to, s
     [for (final s in st.current) if (planNameMatches(s.item.title, query)) s],
     [for (final s in st.removed) if (planNameMatches(s.item.title, query)) s]);
 
-/// F-043 달별 비율 추이 — 오늘 기준 최근 [trendMonths]달(첫 목록 달보다 앞선 달은 없음).
-const trendMonths = 3;
+/// F-043 달별 비율 추이 — 오늘 기준 최근 [maxTrendMonths]달(첫 목록 달보다 앞선 달은 없음). 넘으면 화면이 전체 달 수를 함께 적는다.
+const maxTrendMonths = 3;
 
 class PlanTrend {
   PlanTrend(this.months, this.totalMonths, this.rates);
@@ -113,7 +113,7 @@ PlanTrend planTrend(PlanStore store, DateTime today) {
   final thisMonth = DateTime(today.year, today.month);
   final firstMonth = DateTime(first.year, first.month);
   final total = (thisMonth.year - firstMonth.year) * 12 + thisMonth.month - firstMonth.month + 1;
-  final shown = total < trendMonths ? total : trendMonths;
+  final shown = total < maxTrendMonths ? total : maxTrendMonths;
   final months = [for (var k = shown - 1; k >= 0; k--) DateTime(thisMonth.year, thisMonth.month - k)];
   final rates = <String, List<double?>>{};
   for (var m = 0; m < months.length; m++) {
@@ -130,11 +130,14 @@ enum PlanPeriod {
   week('이번 주'),
   month('이번 달'),
   lastMonth('지난 달'),
-  days30('최근 30일');
+  days30('최근 $recentDays일');
 
   const PlanPeriod(this.label);
   final String label;
 }
+
+/// F-037 '최근 N일' 빠른 선택의 날 수(오늘 포함).
+const recentDays = 30;
 
 /// 빠른 선택의 (시작, 끝). 이번 주는 일요일 시작(달력과 같음). 끝이 오늘 뒤일 수 있는 건 없다.
 (DateTime, DateTime) periodRange(PlanPeriod p, DateTime today) {
@@ -143,6 +146,6 @@ enum PlanPeriod {
     PlanPeriod.week => (DateTime(t.year, t.month, t.day - t.weekday % 7), t),
     PlanPeriod.month => (DateTime(t.year, t.month), t),
     PlanPeriod.lastMonth => (DateTime(t.year, t.month - 1), DateTime(t.year, t.month, 0)),
-    PlanPeriod.days30 => (DateTime(t.year, t.month, t.day - 29), t),
+    PlanPeriod.days30 => (DateTime(t.year, t.month, t.day - (recentDays - 1)), t),
   };
 }

@@ -20,7 +20,7 @@ const _help = '통계는 이렇게 셉니다\n'
     '• 오늘까지 셉니다 — 오늘 아직 안 한 항목은 비율이 낮게 보일 수 있습니다\n'
     '• 이름을 바꾼 항목은 한 줄로, 지금 목록에서 지운 항목은 따로 모읍니다\n'
     '• 최장 연속 = 고른 기간 안에서 해야 한 날을 이어서 해낸 가장 긴 날 수 (보류·주말 보류는 건너뜀, 오늘 아직은 끊지 않음)\n'
-    '• 달별 추이 = 기간과 상관없이 오늘 기준 최근 $trendMonths달의 달마다 비율, ▲▼는 지난달 대비 (지금 목록 항목만)';
+    '• 달별 추이 = 기간과 상관없이 오늘 기준 최근 $maxTrendMonths달의 달마다 비율, ▲▼는 지난달 대비 (지금 목록 항목만)';
 
 class PlanStatsScreen extends StatefulWidget {
   const PlanStatsScreen({super.key, required this.store, this.now = DateTime.now});

@@ -68,6 +68,9 @@ void _apply(_Run r, _Mark m) {
   }
 }
 
+/// F-042 '두 번 연속 빠지지 않기' — 이만큼 이어 놓치면 달력 칸에 점, 오늘 놓침이 이만큼 이어졌을 때만 오늘 목록에 강조.
+const missRunMark = 2;
+
 PlanStreaks planStreaks(PlanStore store, DateTime today) {
   final first = store.firstDay;
   final doubleMiss = <String>{};
@@ -80,9 +83,9 @@ PlanStreaks planStreaks(PlanStore store, DateTime today) {
       shown[i.id] = (streak: 1, misses: r.miss);
       return;
     }
-    if (m == _Mark.miss && r.miss > 0) doubleMiss.add(dayKey(d));
+    if (m == _Mark.miss && r.miss + 1 >= missRunMark) doubleMiss.add(dayKey(d)); // 이 놓침까지 센 연속
     _apply(r, m);
-    if (isToday) shown[i.id] = (streak: r.ok, misses: m == _Mark.miss && r.miss < 2 ? 0 : r.miss);
+    if (isToday) shown[i.id] = (streak: r.ok, misses: m == _Mark.miss && r.miss < missRunMark ? 0 : r.miss);
   });
   return PlanStreaks(shown, doubleMiss);
 }

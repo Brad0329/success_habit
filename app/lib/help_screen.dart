@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 
 import 'app_menu.dart';
 import 'app_version.dart';
+import 'plans.dart' show maxIdentities, maxPlanChars, maxPlanItems;
 
 const helpCredit = '이 앱은 Brad 2.0 이 제작했습니다.';
 
@@ -24,7 +25,7 @@ const helpSections = <(String, List<String>)>[
     "• DO는 할 일(운동, 독서), DON'T는 하지 않을 일(야식, 늦잠)입니다.",
     '• 작게 시작하세요. "운동 1시간"보다 "팔굽혀펴기 5개"가 오래갑니다.',
     '• 바꾼 계획은 오늘부터 적용되고, 지난 날의 기록은 그대로 남습니다.',
-    '• 줄을 길게 눌러 끌면 순서를 바꿀 수 있습니다. 계획은 최대 30개, 이름은 40자까지입니다.',
+    '• 줄을 길게 눌러 끌면 순서를 바꿀 수 있습니다. 계획은 최대 $maxPlanItems개, 이름은 $maxPlanChars자까지입니다.',
   ]),
   ('2. 매일 체크하기', [
     '• 앱을 켜면 달력이 나오고, 날짜를 누르면 그날 계획 목록이 아래에 뜹니다.',
@@ -44,7 +45,7 @@ const helpSections = <(String, List<String>)>[
     '• 평일에 쉬는 날(휴가, 공휴일)은 계획 화면의 휴일로 지정을 누르면 그날 주말 계획으로 바뀝니다. 달력에서는 날짜가 빨갛게 보입니다.',
   ]),
   ('5. 나는 이런 사람 (선택)', [
-    '• 설정 → 나는 이런 사람에 되고 싶은 모습을 최대 3개까지 적습니다(예: "나는 매일 읽는 사람이다").',
+    '• 설정 → 나는 이런 사람에 되고 싶은 모습을 최대 $maxIdentities개까지 적습니다(예: "나는 매일 읽는 사람이다").',
     '• 적은 문장은 달력 위에 매일 보입니다. 안 써도 됩니다.',
   ]),
   ('6. 🔥 연속과 놓침 표시', [
